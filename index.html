@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offer Go · 岗位看板</title>
+  <style>
+    :root {
+      --bg: #f4f6fa;
+      --surface: #ffffff;
+      --border: #e6e9f0;
+      --text: #1c2333;
+      --muted: #5c6578;
+      --accent: #3d6ee8;
+      --accent-soft: rgba(61, 110, 232, 0.12);
+      /* JD 内标注：浅紫、低存在感 */
+      --jd-hl-bg: rgba(109, 40, 217, 0.09);
+      --jd-kw-bg: rgba(109, 40, 217, 0.05);
+      --radius: 12px;
+      --shadow: 0 8px 24px rgba(28, 35, 51, 0.06);
+      font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    header {
+      background: linear-gradient(135deg, #fafbff 0%, #eef2ff 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem clamp(1rem, 4vw, 2.5rem);
+    }
+    header h1 {
+      margin: 0;
+      font-size: clamp(1.35rem, 3vw, 1.75rem);
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .insight-strip {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: var(--radius);
+      border: 1px solid rgba(61, 110, 232, 0.18);
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 4px 18px rgba(28, 35, 51, 0.05);
+    }
+    .insight-strip p {
+      margin: 0 0 0.45rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .insight-list {
+      margin: 0;
+      padding: 0 0 0 1.1rem;
+      font-size: 0.84rem;
+      color: #3a4254;
+      line-height: 1.55;
+    }
+    .insight-list li { margin: 0.2rem 0; }
+    .insight-list li::marker { color: var(--accent); }
+    .top-bar {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1rem clamp(1rem, 3vw, 2rem) 0;
+    }
+    .layout {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1rem clamp(1rem, 3vw, 2rem) 3rem;
+    }
+    .layout main {
+      min-width: 0;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .panel h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      box-shadow: var(--shadow);
+    }
+    .stat b { display: block; font-size: 1.35rem; color: var(--accent); }
+    .stat span { font-size: 0.8rem; color: var(--muted); }
+    .filters-inline {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      align-items: end;
+    }
+    .filter-row label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+      font-weight: 600;
+    }
+    /* 自定义下拉：统一向下展开，避免原生 select 在视口底部“向上弹” */
+    .cusel {
+      position: relative;
+      width: 100%;
+    }
+    .cusel-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.48rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fafbfd;
+      font-size: 0.86rem;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      text-align: left;
+      min-height: 2.25rem;
+    }
+    .cusel-btn:hover { background: #f3f5fb; }
+    .cusel-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .cusel-btn .cusel-caret {
+      flex-shrink: 0;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg);
+      margin-top: -0.2rem;
+      opacity: 0.75;
+    }
+    .cusel.open .cusel-btn .cusel-caret {
+      transform: rotate(-135deg);
+      margin-top: 0.1rem;
+    }
+    .cusel-panel {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 50;
+      max-height: min(16rem, 42vh);
+      overflow: auto;
+      padding: 0.25rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 12px 32px rgba(28, 35, 51, 0.12);
+    }
+    .cusel.open .cusel-panel { display: block; }
+    .cusel-option {
+      display: block;
+      width: 100%;
+      padding: 0.42rem 0.55rem;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      font-size: 0.84rem;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .cusel-option:hover { background: #f0f4ff; }
+    .cusel-option[aria-selected="true"] {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .kw-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.75rem;
+    }
+    .kw-row input[type="text"] {
+      flex: 1 1 160px;
+      min-width: 140px;
+      padding: 0.45rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fafbfd;
+      font-size: 0.86rem;
+      font-family: inherit;
+    }
+    .chip-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .chip-toggle input {
+      accent-color: var(--accent);
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+    .panel-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid #eef0f5;
+    }
+    .export-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+    .btn-ghost {
+      padding: 0.38rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-ghost:hover { background: #f7f8fc; }
+    .funnel {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 0.45rem;
+    }
+    .funnel button {
+      padding: 0.38rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fafbfd;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .funnel button:hover { background: #f0f4ff; color: var(--text); }
+    .funnel button.on {
+      border-color: rgba(61, 110, 232, 0.45);
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .funnel-count { font-weight: 650; color: var(--text); }
+    .company-pill {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      margin-right: 0.35rem;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 0.12rem 0.38rem;
+      border-radius: 4px;
+      margin: 0.1rem 0.35rem 0 0;
+      border: 1px solid transparent;
+      font-weight: 450;
+    }
+    .tag-c0 { background: #eef6ff; color: #5a6d85; border-color: #dbeafe; }
+    .tag-c1 { background: #fdf2f7; color: #7a6570; border-color: #fce7f0; }
+    .tag-c2 { background: #f0faf3; color: #5a6b5f; border-color: #dcf5e4; }
+    .tag-c3 { background: #fff8f0; color: #7a6554; border-color: #ffe8d2; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem 1.1rem;
+      margin-bottom: 0.85rem;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+    .title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.4rem;
+    }
+    .title-row h3 {
+      margin: 0;
+      flex: 1;
+      min-width: 11rem;
+      font-size: 1.02rem;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+    .job-link {
+      flex-shrink: 0;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 0.15em;
+      word-break: break-all;
+      max-width: 100%;
+    }
+    .job-link:hover { color: #2d5ad6; }
+    .card .meta {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .card-foot {
+      margin-top: 0.65rem;
+      padding-top: 0.55rem;
+      border-top: 1px solid #f0f2f6;
+      font-size: 0.72rem;
+      color: #8b93a5;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .apply-seg {
+      display: inline-flex;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: #fafbfd;
+    }
+    .apply-seg button {
+      border: none;
+      background: transparent;
+      padding: 0.28rem 0.45rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: inherit;
+      line-height: 1.2;
+    }
+    .apply-seg button + button { border-left: 1px solid var(--border); }
+    .apply-seg button.on {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .apply-seg button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .jd-wrap {
+      margin-top: 0.35rem;
+      min-width: 0;
+    }
+    .jd {
+      font-size: 0.86rem;
+      color: #3a4254;
+      padding: 0.65rem 0.75rem;
+      background: #fafbfd;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      /* pre-line：保留我们插入的换行，合并抽文中的多余硬折行后按容器宽度重排 */
+      white-space: pre-line;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      line-height: 1.55;
+      width: 100%;
+      max-width: 100%;
+      max-height: 11rem;
+      overflow: hidden;
+    }
+    .jd-wrap.jd-open .jd {
+      max-height: none;
+      overflow: auto;
+      min-height: 0;
+    }
+    .jd-toggle {
+      margin-top: 0.4rem;
+      padding: 0;
+      border: none;
+      background: none;
+      font-size: 0.8rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: inherit;
+    }
+    .jd-toggle:hover { color: #2d5ad6; }
+    .jd-modal {
+      box-sizing: border-box;
+      width: min(96vw, 56rem);
+      max-width: calc(100vw - 1rem);
+      max-height: min(90vh, 900px);
+      padding: 0;
+      margin: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 20px 50px rgba(28, 35, 51, 0.18);
+      background: var(--surface);
+    }
+    .jd-modal::backdrop {
+      background: rgba(28, 35, 51, 0.35);
+    }
+    .jd-modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.85rem clamp(0.75rem, 3vw, 1rem);
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, #fafbff 0%, #eef2ff 100%);
+    }
+    .jd-modal-head h4 {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      font-size: clamp(0.9rem, 2.5vw, 0.98rem);
+      font-weight: 650;
+      line-height: 1.35;
+      color: var(--text);
+      word-break: break-word;
+    }
+    .jd-modal-close {
+      flex-shrink: 0;
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: var(--text);
+      font-family: inherit;
+    }
+    .jd-modal-close:hover {
+      background: #f4f6fa;
+    }
+    .jd-modal-body {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 1rem clamp(0.75rem, 3vw, 1.25rem) 1.15rem;
+      max-height: min(calc(90vh - 5.5rem), 820px);
+      overflow: auto;
+      font-size: clamp(0.82rem, 2.4vw, 0.9rem);
+      color: #3a4254;
+      -webkit-overflow-scrolling: touch;
+    }
+    .jd-modal-body .jd {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      max-height: none;
+      overflow: visible;
+      border: none;
+      padding: 0;
+      background: transparent;
+      white-space: pre-line;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      line-height: 1.6;
+    }
+    .jd mark.hl {
+      background: var(--jd-hl-bg);
+      color: inherit;
+      font-weight: 600;
+      padding: 0.03em 0.1em;
+      border-radius: 3px;
+    }
+    .jd strong.jd-kw {
+      font-weight: 600;
+      background: var(--jd-kw-bg);
+      color: inherit;
+      padding: 0.02em 0.06em;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>Offer Go 岗位看板</h1>
+      <div class="insight-strip" aria-label="岗位共性与筛选倾向">
+        <p>这批意向岗的共性：</p>
+        <ul class="insight-list">
+          <li><strong>方向</strong>：AI / LLM / Agent / 多模态的应用型产品为主，少量偏平台、模型效果与数据闭环。</li>
+          <li><strong>公司</strong>：阿里系、字节、腾讯、蚂蚁、Kimi、MiniMax、阶跃等大厂与头部模型厂集中。</li>
+          <li><strong>能力</strong>：普遍要技术理解、评测与指标、跨团队推进；Agent、工作流、Prompt、RAG、平台化反复出现。</li>
+          <li><strong>你的筛选</strong>：更偏「前沿 + 能把产品做深」的机会；实习 / 校招 / 社招混在一起，城市约束弱。</li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <div class="top-bar">
+    <div class="panel" style="margin-bottom:1rem">
+      <h2>筛选</h2>
+      <div class="filters-inline">
+        <div class="filter-row">
+          <label id="lblCompany">按公司</label>
+          <div class="cusel" id="cuselCompany" data-filter="company"></div>
+        </div>
+        <div class="filter-row">
+          <label id="lblCategory">岗位类别（产业结构 / 产品性质）</label>
+          <div class="cusel" id="cuselCategory" data-filter="category"></div>
+        </div>
+        <div class="filter-row">
+          <label id="lblHire">招聘类型</label>
+          <div class="cusel" id="cuselHire" data-filter="hire"></div>
+        </div>
+        <div class="filter-row">
+          <label id="lblCity">城市</label>
+          <div class="cusel" id="cuselCity" data-filter="city"></div>
+        </div>
+        <div class="filter-row" style="grid-column: 1 / -1">
+          <label for="filterKeyword">关键词</label>
+          <div class="kw-row">
+            <input type="text" id="filterKeyword" placeholder="任意词，匹配标题 / 标签 / JD…" autocomplete="off" />
+            <label class="chip-toggle"><input type="checkbox" id="kwAgent" /> Agent</label>
+            <label class="chip-toggle"><input type="checkbox" id="kwVoice" /> 语音</label>
+            <label class="chip-toggle"><input type="checkbox" id="kwPlatform" /> 平台</label>
+          </div>
+        </div>
+      </div>
+      <div class="panel-toolbar">
+        <div class="funnel" id="funnelBar" role="group" aria-label="按投递状态筛选">
+          <button type="button" class="on" data-status="">全部 <span class="funnel-count" id="funnel-all">0</span></button>
+          <button type="button" data-status="none">未投 <span class="funnel-count" id="funnel-none">0</span></button>
+          <button type="button" data-status="applied">已投 <span class="funnel-count" id="funnel-applied">0</span></button>
+          <button type="button" data-status="interview">面试中 <span class="funnel-count" id="funnel-interview">0</span></button>
+        </div>
+        <div class="export-btns">
+          <button type="button" class="btn-ghost" id="btnExportCsv">导出 CSV</button>
+          <button type="button" class="btn-ghost" id="btnExportMd">导出 Markdown</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <main>
+      <div class="stats">
+        <div class="stat"><b id="stat-jobs">0</b><span>当前列表岗位</span></div>
+        <div class="stat"><b id="stat-companies">0</b><span>公司主体</span></div>
+        <div class="stat"><b id="stat-applied-pct">—</b><span>推进占比（已投+面试 · 当前列表）</span></div>
+      </div>
+
+      <div class="panel">
+        <h2>岗位列表</h2>
+        <div id="cards"></div>
+      </div>
+      <dialog id="jdDialog" class="jd-modal" aria-labelledby="jdDialogTitle">
+        <div class="jd-modal-head">
+          <h4 id="jdDialogTitle">岗位 JD</h4>
+          <button type="button" class="jd-modal-close" id="jdDialogClose">关闭</button>
+        </div>
+        <div class="jd-modal-body" id="jdDialogBody"></div>
+      </dialog>
+    </main>
+  </div>
+
+  <script>
+    const OMIT = "未注明";
+    const APPLY_LS = "offerGoBoard.apply.v1";
+
+    /** 与下拉同步的筛选状态（自定义下拉不挂原生 value） */
+    const FILTER = {
+      company: "",
+      category: "",
+      hire: "",
+      city: "",
+      keyword: "",
+      apply: "",
+    };
+
+    function loadApplyMap() {
+      try {
+        const raw = localStorage.getItem(APPLY_LS);
+        const o = raw ? JSON.parse(raw) : {};
+        return o && typeof o === "object" ? o : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveApplyMap(m) {
+      try {
+        localStorage.setItem(APPLY_LS, JSON.stringify(m));
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let applyMap = loadApplyMap();
+
+    function getApplyStatus(id) {
+      const v = applyMap[String(id)];
+      if (v === "applied" || v === "interview") return v;
+      return "none";
+    }
+
+    function setApplyStatus(id, st) {
+      const k = String(id);
+      if (st === "applied" || st === "interview") {
+        applyMap[k] = st;
+      } else {
+        delete applyMap[k];
+      }
+      saveApplyMap(applyMap);
+    }
+
+    /** id 30：Moka moonshot → 月之暗面；id 31–32：Moka 阶跃星辰（94904/94905） */
+    const JOBS = [
+      { id: 1, company: "阿里巴巴集团", bu: "通义实验室", title: "通义实验室-语音AI产品经理-通义百聆", city: OMIT, type: "社招", tags: ["语音 / 音频", "大模型应用", "ToB"], jd: "职位描述\n1. 产品规划与路线设计：深\n度调研不同场景下的语音\nAI产品需求，结合语音AI\n技术演进与行业发展趋\n势，制定语音交互产品\n（语音输入、语音生成、\n语音对话、语音同传、歌\n声音乐生成等）的短中长\n期路线图，明确核心能力\n优先级、场景落地顺序及\n资源投入节奏。\n2. 功能设计与优化：主导语\n音AI产品核心功能的设计\n与迭代，包括但不限于：\n语音音色设计、交互体验\n设计、场景化功能定制，\n持续提升产品在不同场景\n下的用户体验。定义和细\n化语音AI模型的功能和评\n测体系，包括但不限于：\n表现力、共情、自然度\n等。\n\n3. 跨团队协同与项目推进：\n作为语音AI产品落地的核\n心协调者，联动算法、工\n程、业务及测试团队，明\n确各环节交付标准与时间\n节点，解决跨部门协作中\n的技术瓶颈与需求冲突，\n确保产品在各场景顺利落\n地。\n4. 行业动态与竞品分析：跟\n踪国内外语音AI技术与产\n品的发展动态（如新型算\n法、前沿应用场景、竞品\n功能与策略等），定期输\n出分析报告，为产品策略\n调整提供依据，提升公司\n语音AI产品的竞争力。\n职位要求\n1. 经验背景：3年及以上产品\n经理工作经验，其中至少2\n年以上语音相关产品经\n验，有TTS、语音翻译等\n经验者优先。熟悉语音AI\n技术的基本原理与产品开\n发流程，有操盘语音AI产\n品在2B服务经验的优先。\n2. 技术理解能力：具备对语\n音AI技术的基础认知，能\n理解算法技术概念，可与\n算法、工程团队高效沟通\n技术方案的可行性、落地\n成本及优化方向。\n3. 跨团队协作能力：具备强\n沟通协调能力与项目推动\n力，能在多团队协作中明\n确目标、化解分歧，过往\n有主导跨部门复杂项目落\n地的经验。\n4. 问题解决与抗压能力：面\n对产品落地中的技术瓶\n颈、资源冲突，能快速拆\n解问题、提出替代方案；\n可适应快节奏的产品迭代\n节奏，承受项目交付压\n力。" },
+      { id: 2, company: "阿里巴巴集团", bu: "通义实验室", title: "通义实验室-产品专家-多模态交互-北京/杭州", city: "北京 / 杭州", type: "社招", tags: ["多模态", "Agent / 助手", "生态 / SDK"], jd: "职位描述\n1. 多模态交互系统设计：从\n产品应用体验视角，结合\n模型的持续迭代进展，定\n义多模态交互产品架构和\n标准SDK，主导交互体验\n优化，包括交互准确性、\n流畅性、情感化理解和表\n达、多轮上下文记忆等核\n心能力。\n2. 场景化解决方案开发：\n（1）针对不同客户场景，设\n计交互方案。\n（2）协同研发团队针对典型\n场景，设计并优化模型和工程\n方案，满足低功耗、高实时性\n要求。\n3. 技术生态整合：\n（1）联合外部厂商，推动该\n交互产品适配。\n（2）构建开发者友好的多模\n态交互套件，降低生态接入成\n本。\n4. 行业洞察与竞争分析：跟\n踪国内外多模态交互类产\n品动态，制定技术对标与\n差异化方案。\n职位要求\n1. 3年以上AI交互类产品经\n验，有智能助手类产品\n（AI助手/\nAgent/Chatbot）成功落\n地案例。\n2. 熟悉多模态技术栈（语\n音、语义、视觉、对话管\n理等），了解大模型技术\n边界，能精准判断技术和\n场景适配性。\n3. 了解交互产品用户体验评\n测方案，数据集构建与评\n测方法（如用户意图达成\n率，链路延迟分布等）。\n\n4. 具备良好的协作与沟通能\n力，能清晰传达需求和技\n术愿景，并促进跨部门合\n作推动产品落地，具备项\n目管理能力。\n5. 拥有优秀的用户洞察能\n力，能将用户需求转化为\n产品功能，完成创新产品\n设计与问题解决，并能保\n持持续学习的状态。\n加分项：\n1. 有手机厂商AI助手 / 系统\n应用经验\n2. 有Agent系统设计经验（如\nAgentOS / OpenClaw类）\n3. 熟悉端侧AI（On-device\nAI）\n4. 有多模态交互（语音 / 图\n像 / 屏幕理解）经验\n5. 有技术背景（能读代码 /\nAPI设计能力）" },
+      { id: 3, company: "阿里巴巴集团", bu: "钉钉（悟空事业部）", title: "悟空事业部-AI产品经理（智能合同/智能工程方向）-杭州", city: "杭州", type: "社招", tags: ["企业 SaaS", "大模型应用", "商业化"], jd: "职位描述\n1. 主要负责“钉钉智能合\n同”/“钉钉智能工程”相\n关产品策略规划、产品设\n计，并推动落地拿到结\n果，背负商业化指标；\n2. 有耐心和韧性以及AI的视\n角重构、分析传统的场景\n（企业合同和法律/工程领\n域），从经营视角出发，\n找出新机会，给到企业客\n户超预期的体验，加速智\n能化的普及应用，给行业\n带来新物种。\n职位要求\n1. 3年以上的企业级产品设计\n经验，有丰富的合同法务\n相关产品规划和流程设计\n经验；\n2. 对用户和数据敏锐，对业\n务热爱，思路开阔；\n\n3. 有创新业务和商业产品从\n0-1的经验，了解敏捷开\n发，拥抱不确定性，不拘\n泥于现实条件；\n4. 有AI相关经验优先，有创\n业经历、熟悉常法市场或\n智能硬章硬件加分；\n5. 能抗压，自驱动好，对产\n品有热爱和对极致的追\n求；\n6. 须持有钉钉官方认证的\n《AI应用工程师》中高级\n证书；如尚未取得证书，\n欢迎通过钉钉学习平台考\n取认证。学习链接：\ndingtalk://dingtalkclient/\naction/open_mini_app?\nminiAppId=50000000004\n38545&page=pages%2Fl\nesson%2Fdetail%2Finde\nx%3Fid%3D2250" },
+      { id: 4, company: "阿里巴巴集团", bu: "ATH 事业群 · MaaS", title: "ATH事业群-AI原生应用产品经理-杭州", city: "杭州", type: "社招", tags: ["平台 / 开发者", "商业化 / 增长", "大模型应用"], jd: "职位描述\n团队介绍：\nMaaS（Model as a Service）\n网站产品团队致力于打造行业\n领先的模型即服务平台，为开\n发者和企业客户提供模型发\n现、部署、调用、评测及管理\n的一站式体验。我们相信大模\n型将重塑软件开发与业务创新\n的方式，而一个优秀的 MaaS\n平台是连接模型能力与用户应\n用价值的核心桥梁。\n1. 竞争分析与行业洞察：持\n续跟踪国内外 MaaS 平台\n的产品动态与竞争策略关\n注大模型技术前沿，输出\n竞品分析与产品洞察，将\n技术趋势转化为平台产品\n机会\n\n2. 平台产品规划与设计：负\n责 MaaS 网站平台的整体\n产品规划与路线制定，产\n品设计与持续迭代，设计\n平台化的产品架构与交互\n方案，构建模型发现 → 评\n估 → 部署 → 调用 → 监控\n的完整用户旅程。\n3. 模型生态与开发者体验：\n从个人和企业开发者视角\n出发，规划并优化各类模\n型接入和服务，支撑开源\n模型、自研模型、三方模\n型等多元模型生态的高效\n运转；持续优化 API 文\n档、SDK 、Playground\n、Skills 等开发者工具使用\n体验。\n4. 商业化与增长：参与\nMaaS 平台的商业化策略\n制定，设计模型计费、资\n源套餐、用量计量等商业\n化产品能力。建立产品核\n心指标体系，通过数据分\n析驱动产品决策与增长。\n5. 跨团队协作：建立与横向\n团队紧密协同，并与工\n程、算法、设计、运营、\n解决方案等团队纵向协\n作，推动产品从设计到上\n线应用的全流程闭环。\n职位要求\n1、3 年以上互联网产品经理工\n作经验，其中至少 1 年 AI 相关\n产品经验；\n2、有平台型产品的规划与落\n地经验，理解平台型产品的设\n计逻辑与生态运营思路；\n3、实际大量使用主流 AI 推理\n云平台或AI产品/工具，对主流\n模型和主流AI产品使用有深度\n的实战理解；\n4、具备良好的数据思维，能\n够通过数据分析驱动产品决\n\n策，有搭建指标体系的经验；\n5、具备良好的跨团队沟通协\n作能力，能推动多方协同的复\n杂项目顺利落地；\n加分项\n1、有过开发者平台、API 产\n品、控制台等技术产品的产品\n经理经验；\n2、有计算机或相关技术背\n景，曾有研发类工作经历或开\n发能力；\n3、有对于新范式 AI 产品的实\n践或思考心得；\n4、有独立个人或协同小团队\n闭环开发产品项目的经验；\n5、有 Ownership 意识，抗压\n能力强，能在快速变化的业务\n环境中找到突破点；\n6、英文读写能力优秀，能独\n立撰写英文产品文档，能和海\n外开发者进行沟通交流；\n7、有海外工作生活或国际化\n产品相关的经历。" },
+      { id: 5, company: "阿里巴巴集团", bu: "阿里云智能", title: "阿里云智能-AI Agent产品经理-秒悟-杭州", city: "杭州", type: "社招", tags: ["Agent / 助手", "Coding 工具", "数据驱动"], jd: "职位描述\n我们正在打造面向下一代开发\n者与知识工作者的 AI 原生产\n品，覆盖 Vibe Coding（AI 驱\n动的自然语言编程）与 AI 协同\n办公两大场景。\n将负责\n● AI产品设计：从用户视角出\n发，主导 AI Coding 产品的体\n验设计与持续优化，推动需求\n从洞察到上线的全流程闭环\n● Agent 场景评测与梳理：与\n研发团队深度协作，梳理\nAgent 相关应用场景，拆解 AI\n\n对话流程中的关键环节，识别\n体验瓶颈并提出可落地的优化\n方案\n● 模型能力评估：持续跟踪各\n类大语言模型的应用表现与前\n沿动态，为产品的模型选型与\n能力集成提供专业判断\n● 数据驱动迭代：建立产品核\n心指标体系，通过数据分析驱\n动产品决策，持续提升用户留\n存与使用深度\n职位要求\n● 从用户视角参与AI Coding\n相关产品体验设计与优化，推\n进需求上线\n● 熟悉各类大语言模型的应用\n表现（不只是Coding相关模\n型），有自己独特的品味\n● 协同&抗压能力强\n● Data-driven，良好的数据\n思维\n加分项\n● 强烈的好奇心、细节控\n● 能说出为什么claude code\n比cursor好用or难用\n● 计算机相关背景更优，熟练\n掌握AI Coding如Figma Make\n等AI原型设计工具\n● 有vibe coding经验，自己\n独立vibe coding过简单产品，\n能从用户视角深度理解 Vibe\nCoding 的体验与痛点" },
+      { id: 6, company: "阿里巴巴集团", bu: "阿里云智能", title: "终端智能创新新业务 AI 产品经理（桌面Agent方向）", city: OMIT, type: "社招", tags: ["Agent / 助手", "端侧 / OS", "多模态"], jd: "职位描述\n1. 负责PC 智能体矩阵产品设\n计落地，并将其能力深度\n集成至操作系统内核与系\n统服务，通过全域上下文\n感知、任务自主编排与端\n云协同架构，推动PC从设\n备升级为效率助理；\n\n2. 主导设计智能体的多形态\n呈现方案。确保 Agent 在\n不同任务深度下，能够通\n过最优形态提供即时交\n互、进度反馈及结果展\n示；\n3. 将用户模糊意图转化为可\n观测、可中断、可回滚的\n结构化工作流，在高权限\n运行环境下，严格保障隐\n私安全与人工干预能力；\n4. 与系统平台、AI算法、UX\n及生态团队紧密协作产品\n按时保质落地。\n职位要求\n1. 3年以上产品经验，主导\n过 AI Agent类产品，熟悉\nAgent架构；对主流大模型\n在 工具调用、多模态感\n知、任务规划、记忆管理\n等方面有深度产品实操经\n验；\n2. 深入理解大模型在\nFunction Calling、多模态\n感知（屏幕/语音/剪贴\n板）、任务规划、记忆管\n理 等方向的技术边界与产\n品化路径。\n【加分项】\n1. OS级Agent或 Multi-\nAgent 类Agent产品经验优\n先；\n2. 具备场景Agent 评测体系\n建设经验者优先；\n3. 有 跨应用工作流设计或生\n态开放平台经验者优先。" },
+      { id: 7, company: "阿里巴巴集团", bu: "企业智能（JD 未写具体 BU）", title: "AI Agent产品经理", city: OMIT, type: "社招", tags: ["Agent / 助手", "企业 SaaS", "数据驱动"], jd: "职位描述\n\n1. 用户需求洞察，设计科学\n的需求洞察路径，深度调\n研企业员工日常工作场\n景，挖掘效率瓶颈与体验\n优化点，转化为可落地的\nAI产品功能；\n2. 产品设计与规划，负责企\n业级AI效率产品的全生命\n周期管理，围绕员工生产\n力提升及工作体验优化，\n设计AI产品核心能力（如\n智能助手、自动化流程、\n知识管理、数据分析\n等）；\n3. 产品实施落地，联动技\n术、算法、设计团队，推\n动AI产品功能落地，确保\n最终实施与产品目标对\n齐；\n4. 数据驱动优化，建立产品\n效果评估体系，持续优化\nAI产品能力。关注AI伦理\n与数据安全，设计合规机\n制保障企业信息隐私；\n5. 行业前瞻性调研，跟踪AI\n领域技术突破，探索其在\n企业效率场景的创新应\n用。\n职位要求\n1. 本科及以上学历，计算\n机、人工智能、心理学、\n工业设计等相关专业优\n先；\n2. 熟悉AI基础技术框架，能\n与技术团队高效沟通技术\n应用；\n3. 擅长从员工视角拆解复杂\n任务，设计轻量化、低学\n习成本的AI解决方案；\n\n4. 熟悉企业服务（如OA、\nHR SaaS）或AI行业应\n用，熟悉RPA、低代码等\n效率工具生态，有Prompt\n工程优化或AIGC应用实践\n经验；\n5. 熟练使用SQL/Python分析\n用户行为数据，或具备基\n础技术开发能力；\n6. 逻辑清晰，能快速将抽象\n需求转化为可执行方案；\n自驱力强，对AI技术落地\n怀有热情，适应高速迭代\n的工作节奏。" },
+      { id: 8, company: "阿里巴巴集团", bu: "企业智能（JD 未写具体 BU）", title: "AI产品经理", city: OMIT, type: "社招", tags: ["大模型应用", "Agent / 助手", "数据驱动"], jd: "职位描述\n1. 深入理解业务场景，通过\n用户调研、行业分析及研\n究挖掘AI落地的创新机\n会；\n2. 负责AI应用/平台的方案设\n计，包括核心功能定义、\n工作流（Workflow）编排\n及Prompt设计，输出高质\n量的产品路线图；\n3. 与算法工程师、后端开发\n紧密协作，将大模型能力\n（LLM、多模态、Agent、\nRAG等）转化为可规模化\n的产品功能；\n4. 建立产品评估体系，利用\n数据工具（SQL/Python）\n监控指标波动，根据数据\n反馈和用户原声持续优化\n算法表现与用户体验。\n职位要求\n1. 本科及以上学历，计算\n机、人工智能、电子通\n信、数学、心理学、统计\n学等相关专业优先；\n\n2. 了解AIGC相关知识，包括\n但不限于文本生成、图像/\n视频生成、提示词工程；\n3. 具备基础的数据处理能\n力，熟悉SQL/Python或数\n据分析工具者优先；\n4. 具备优秀的抽象思维和问\n题拆解能力； 对新技术有\n强烈渴望，始终保持对事\n物本质的探究心。" },
+      { id: 9, company: "阿里巴巴集团", bu: "AI 创新事业部", title: "AI创新事业部-AI产品经理实习生-未来生活实验室", city: OMIT, type: "实习", tags: ["AIGC / 创作", "用户研究", "实习"], jd: "职位描述\n1、深度参与AIGC产品的需求\n分析、功能设计与迭代规划，\n从用户视角出发打磨核心体验\n2、调研AIGC工具及创作者生\n态的竞品动态，输出有深度的\n市场与产品分析报告\n3、参与用户访谈与行为数据\n分析，将真实反馈转化为明确\n的产品优化方向\n4、配合技术团队打磨AI生成\n流程中的关键交互体验，理解\n模型能力边界并推动体验落地\n5、协助撰写产品文档、功能\n说明及对外文案，参与产品上\n线全流程\n职位要求\n1、深度参与AIGC产品的需求\n分析、功能设计与迭代规划，\n从用户视角出发打磨核心体验\n2、调研AIGC工具及创作者生\n态的竞品动态，输出有深度的\n市场与产品分析报告\n3、参与用户访谈与行为数据\n分析，将真实反馈转化为明确\n的产品优化方向\n4、配合技术团队打磨AI生成\n流程中的关键交互体验，理解\n\n模型能力边界并推动体验落地\n5、协助撰写产品文档、功能\n说明及对外文案，参与产品上\n线全流程\n非应届本科/硕士优先，可实习\n3个月以上，单周4天以上" },
+      { id: 10, company: "阿里巴巴集团", bu: "AI 创新事业部", title: "AI产品经理", city: OMIT, type: "实习", tags: ["Agent / 助手", "实习", "AIGC / 创作"], jd: "职位描述\n1、我们正在寻找一位对AI充\n满热情的实习生，核心任务是\n基于现有AI能力动手搭建能解\n决实际问题的Agent，你需要\n探索并配置各类Skills，设计\n自动化工作流，让Agent实际\n帮助大家；\n2、深度参与AI产品的需求分\n析、功能设计与迭代规划，从\n用户视角出发打磨核心体验；\n3、调研AIGC工具及创作者生\n态的竞品动态，输出有深度的\n市场与产品分析报告；\n4、参与用户访谈与行为数据\n分析，将真实反馈转化为明确\n的产品优化方向；\n5、配合技术团队打磨AI生成\n流程中的关键交互体验，理解\n模型能力边界并推动体验落\n地；\n6、协助撰写产品文档、功能\n说明及对外文案，参与产品上\n线全流程。\n职位要求\n1、我们希望你具备极强的动\n手能力和探索欲，乐于“捣\n鼓”新工具，对OpenClaw框\n架有浓厚兴趣，能将复杂任务\n拆解为Agent可执行的步骤。\n若有垂直行业认知、基础编程\n能力或自动化工具使用经验，\n会是巨大加分； 这是一份以结\n\n果为导向的实战实习，你将亲\n手打造专属“数字员工”，获\n得前沿的Agent落地经验与项\n目作品集；\n2、非应届本科/硕士优先，可\n实习3个月以上，单周4天以\n上。" },
+      { id: 11, company: "阿里巴巴集团", bu: "通义 · MaaS", title: "Maas平台AI商业化产品经理", city: OMIT, type: "实习", tags: ["商业化 / 增长", "平台 / 开发者", "实习"], jd: "职位描述\n我们正在寻找AI解决方案商业\n化产品经理，你将：\n1.把通义大模型和MaaS平台能\n力，转化为面向企业或开发者\n的可落地、可收费的产品方\n案；\n2.设计基于Token的定价、套\n餐与商业化策略，推动AI能力\n在真实场景中规模化使用；\n3.与AI研发团队紧密协作，通\n过产品反馈和数据洞察，驱动\n模型与平台持续优化。\n职位要求\n1. 基础背景：本科及以上学\n历，计算机、人工智能、\n软件工程、数学、统计、\n信息管理、商科等相关专\n业优先；\n2. 2027年及之后毕业，可保\n证3个月以上实习时间；\n3. 核心特质：对AI有热情与\n好奇心：日常使用大模型\n产品（如通义千问、\nChatGPT等），关注AI行\n业动态；\n4. 商业敏感度高：能思\n考“技术如何变现”，对\n定价、用户付费、\nSaaS/API商业模式有基本\n理解；\n\n5. 逻辑清晰，表达精准：能\n将复杂技术用简单语言讲\n清楚，擅长写文档、做分\n析、画流程；\n6. 主动性强，学习快：能在\n模糊环境中快速上手，主\n动推动事情落地。" },
+      { id: 12, company: "阿里巴巴集团", bu: "千问事业部", title: "千问事业部-千问 Agent产品经理-北京/杭州", city: "北京 / 杭州", type: "社招", tags: ["Agent / 助手", "大模型应用"], jd: "职位描述\n1. 产品规划与战略\n•\nAI Agent产品路线图设\n计，聚焦大模型场景的创\n新应用。\n•\n跟踪行业动态，分析竞品\n策略，输出差异化竞争方\n案。\n2. 场景化产品设计：围绕用\n户核心需求定义场景解决\n方案，完成产品方案落地\n3. 基于数据分析的用户体验\n优化\n职位要求\n1、本科及以上学历，3年以上\n互联网行业产品工作经验，有\n大型agent项目成功案例者优\n先；\n2、对AI领域的发展趋势和应\n用有一定的理解，具备敏锐的\n产品洞察力和商业敏感度；\n3、拥有出色的沟通协调能\n力、优秀的逻辑思维能力、良\n好的数据分析能力，能独立完\n成跨职能、跨部门沟通协作；\n4、责任心强，良好的执行力\n和抗压能力，自我驱动。" },
+      { id: 13, company: "阿里巴巴集团", bu: "千问事业部", title: "千问事业部-千问Agent产品（生态合作）-杭州/北京", city: "杭州 / 北京", type: "社招", tags: ["Agent / 助手", "本地生活 / 零售", "ToC"], jd: "职位描述\n1、负责 阿里集团 Agent 能力\n及三方Agent 能力在千问侧的\n产品化落地，让AI能够真的帮\n用户办事（千问一句话帮你点\n\n奶茶、买电影票、充话费、打\n车等）\n2、通过AI创新用户在即时零\n售、生活出行、生活办事等场\n景的体验\n2、作为具体项目负责人，推\n进能力按期上线，协调算法、\n工程、设计及团队协作。\n3、基于上线数据与用户反\n馈，持续分析能力使用效果，\n发现问题并推动优化，提升场\n景覆盖率、成功率与用户满意\n度。\n职位要求\n1、本科及以上学历，具备2年\n以上年互联网产品经验，有 AI\n相关产品或平台能力经验者优\n先；\n2、对 AI 技术和大模型应用有\n较深入理解，清楚 AI 在真实业\n务场景中的能力边界，完整参\n与过一个 AI ToC 产品或功能的\n落地过程；\n3、具备良好的沟通能力与协\n作意识，能在跨团队合作中主\n动推进问题解决，对结果负\n责。" },
+      { id: 14, company: "阿里巴巴集团", bu: "千问事业部", title: "千问事业部-AI 交互产品经理 - 千问语音Agent-北京/杭州", city: "北京 / 杭州", type: "社招", tags: ["语音 / 音频", "Agent / 助手", "本地生活"], jd: "职位描述\n负责千问语音/视频助手\n职位需求\n1、语音助手优化：负责千问\n语音场景的需求定义和产品优\n化。\n2、视频助手优化：负责千问\n视频场景的需求定义和产品优\n化。\n3、生活服务语音助手：对接\n淘宝闪购、淘宝、高德等集团\n核心业务，从“能对\n\n话”到“会办事”，打造行业\n领先的语音 AI 生活服务链路。\n4、协调资源和推进落地：拆\n解业务线条，协调工程、算\n法、设计及各业务方资源，支\n撑业务目标的达成。\n职位要求\n1、有好奇心，对大模型技术\n和产品有好奇心，喜欢探索新\n业务，做探索型产品。\n2、推动能力好，面对跨部门\n协作的复杂环境，能够凭专业\n性和韧性拿结果，不仅能发现\n问题，更能搞定资源解决问\n题。\n3、本科以上学历，1-5 年互联\n网产品经验，负责过独立完整\n业务者、有大模型效果优化经\n验或应用大模型独立手搓项目\n者优先。\n4、无需大模型语音/视频生成\n业务背景。" },
+      { id: 15, company: "阿里巴巴集团", bu: "淘天 · 直播电商", title: "淘天直播电商-AI数字人-杭州", city: "杭州", type: "社招", tags: ["数字人 / 直播", "AIGC / 创作", "大模型应用"], jd: "职位描述\n1、负责数字人直播AI交互方\n案设计：针对直播间核心场\n景，设计基于LLM驱动的数字\n人智能讲解（商品卖点自动提\n炼与动态话术）与实时互动\n（观众弹幕识别与高情商回\n复）方案，提升直播间用户留\n存与互动率。\n2、优化Prompt与知识库\n（RAG）建设：负责日常调优\n与周期性算法效果验收，通过\n精细化的Prompt工程与RAG\n策略，确保数字人回复内容的\n准确性、专业度与拟人化风\n格，降低内容生成的“幻\n觉”风险。\n3、搭建AI内容与互动评测体\n系：设计多维度的评测指标\n\n（如话术准确率、回复响应速\n度、互动留存效果等），建立\n标准评测集，通过量化数据发\n现方案薄弱点并驱动持续优\n化。\n4、推进产品闭环落地：与算\n法、工程团队紧密配合，确保\nAI策略在直播间稳定运行，根\n据业务反馈快速迭代，提升数\n字人在真实业务场景中的表\n现。\n职位要求\n1、AI产品实操经验：本科及\n以上学历，1年及以上AI相关\n工作经验，熟悉LLM、\nPrompt Engineering或RAG的\n基本原理，有自己搭建过AI应\n用或调优过Prompt者优先。\n2、业务逻辑拆解能力：具备\n良好的用户思维，能够拆解直\n播间讲解与互动的具体业务需\n求，并将其转化为清晰的技术\n实现逻辑。\n3、具备数据评测意识：能够\n建立基础的评测标准，不仅凭\n感觉，而是通过数据对比来验\n证AI效果的优劣。\n4、快速学习与沟通：逻辑清\n晰，对新技术有热情，能与算\n法和工程团队无障碍沟通，能\n够适应直播业务快速迭代的工\n作节奏。" },
+      { id: 16, company: "阿里巴巴集团", bu: "淘天 · 淘宝直播技术", title: "业务技术-淘宝直播数字人平台产品-直播技术", city: OMIT, type: "社招", tags: ["数字人 / 直播", "平台 / 开发者", "Agent / 助手"], jd: "职位描述\n1. 负责数字人平台产品规划\n与版本路线图，沉淀平台\n能力分层与模块边界（形\n象资产/生成与驱动/编辑\n与发布等）。\n2. 面向业务场景做需求分析\n与指标定义，输出PRD、\n原型与验收标准，对交付\n结果负责。\n\n3. 熟练使用AIGC工具（生图/\n生视频）进行效果探索与\n方案验证，沉淀Prompt/\n参数/素材的可复用资产库\n与工作流程。\n4. 设计并推动Agent/工作流\n的产品化落地（工具调\n用、自动化流程编排、可\n观测与可评估），提升内\n容生产效率与稳定性。\n5. 推动算法、音视频工程、\n平台研发等多团队协作：\n里程碑、依赖与风险管\n理，保障上线质量（灰\n度、监控、回滚）。\n职位要求\n1. 本科及以上学历，1年以上\n平台产品/AI产品/工具类产\n品经验，有0-1或平台化建\n设经验优先。\n2. 熟练使用生图、生视频类\nAIGC工具进行原型与效果\n对齐；理解一致性、可控\n性、稳定性、成本/时延等\n关键取舍。\n3. 了解Agent基本范式与落地\n要点（RAG、工具调用、\n工作流编排、评测/观\n测），有实践经验优先。\n4. 具备优秀的跨团队推动与\n项目管理能力，能在高不\n确定性研发环境中推进交\n付。\n5. 具备数据化思维，能建立\n并跟踪核心指标与评测方\n法，持续优化效果与效\n率。\n6. 有数字人/视频生成/音视\n频链路或内容生产平台经\n验，或具备合规/版权机制\n落地经验者优先。" },
+      { id: 17, company: "蚂蚁集团", bu: "AI 原生应用", title: "蚂蚁集团-产品专家-AI原生应用", city: OMIT, type: "社招", tags: ["大模型应用", "Agent / 助手", "ToC"], jd: "职位描述\n1. 基于最前沿的AI大模型能\n力和海量算力，构建AI原\n生应用，探索下一代国民\n级AI入口，负责产品的战\n略规划和落地执行；\n2. 洞察用户在对话/多模态交\n互/LLM Agent领域的应用\n场景和需求类型，并针对\n性的进行功能或策略优\n化；\n3. 理解AI大模型最新发展趋\n势和行业版图，对AI引发\n的供需变化有前瞻性的思\n考；\n4. 协调内外部资源，积极驱\n动及协同研发、运营等相\n关部门，有效推进并解决\n问题、保证项目高质量落\n地；\n职位要求\n1. 有从0到1的C端互联网产\n品或创业经验，并得到市\n场验证者优先； 有海外留\n学工作经历者优先；\n2. 对AI大模型的能力边界有\n深入的理解，有过技术驱\n动的C端互联网产品经验者\n优先；\n3. 有对话/图像/音视频/搜广\n推/LLM Agent相关经验者\n优先；\n4. 具备较强的用户洞察和同\n理心、逻辑分析能力、产\n品策略判断能力、跨团队\n协作沟通能力以及执行推\n动力；\n5. 学习能力强，综合素质\n高，使命驱动，高度自\n驱，有创业精神；" },
+      { id: 18, company: "蚂蚁集团", bu: "AI 原生产品", title: "蚂蚁集团-AI原生产品经理-杭州", city: "杭州", type: "社招", tags: ["Agent / 助手", "Coding 工具", "硬技术向"], jd: "职位描述\n\n1. 技术前瞻： 跟踪大语言模\n型、多模态、Agent领域的\n最新能力和开源项目（如\nOpenClaw, LangChain,\nAutoGPT 等）。\n2. Agent 技能开发： 基于最\n新AI工具架构设计产品并\n编写具体的能力。\n3. 闭环落地： 参与 AI人才管\n理相关流程的设计和落\n地。\n4. AI 原生开发： 利用\nCursor、Trae 等 IDE 或编\n辑器，结合 Claude\nCode、GitHub Copilot 等\n工具，进行高效的功能开\n发、代码重构与调试。\n5. Vibe Coding 实践： 将产\n品需求通过提示词工程转\n化为可运行的代码模块，\n快速产出 MVP（最小可行\n产品）并进行迭代。\n6. Prompt 工程： 针对不同\n业务场景优化 Prompt 策\n略，提升模型在专业领域\n评估的准确性。\n职位要求\n1. 硬核技术： 计算机、人工\n智能相关专业，熟练掌握\n至少一种主流编程语言\n（如 Python /\nJavaScript/TypeScript /\nGo / Java 等）。\n2. AI 工具重度用户：\na. 拥有丰富的 Vibe Coding 经\n验，善于通过自然语言与AI模\n型沟通以驱动开发。\nb. 精通 Cursor 编辑器的使\n用，熟悉其规则设置、代码库\n索引及高级功能。\nc. 熟悉 Trae 或类似AI原生IDE\n的使用场景。\n\nd. 熟练使用 Claude Code 或\n类似命令行AI工具进行批量任\n务处理或代码库管理。\n3. 架构认知： 深入理解 LLM\nAgent 的原理，熟悉\nOpenClaw 或类似 Agent\n框架的底层架构。\n4. 实战经验： 有过实际编写\nAgent Skill\n（Tool/Plugin）的经验，\n理解 Function Calling 或\nReAct 模式。\n5. 业务感知： 对人才管理业\n务流程有好奇心，能从技\n术角度拆解“什么是人才\n评价标准”，“什么是优\n秀的人岗匹配”。\n6. 加分项： 在 GitHub 有高\n质量 AI 相关项目；或有\nRAG优化经验。" },
+      { id: 19, company: "蚂蚁集团", bu: "—", title: "【转正实习】AI产品经理", city: OMIT, type: "实习", tags: ["Agent / 助手", "实习", "数据驱动"], jd: "职位描述\n你要来搞什么大事？\n1.定义 Agent 灵魂： 设计\nPlanning（思考逻辑）、\nReflection（反思）与\nMemory（记忆）策略，打造\n从“对话框”进化为“生产力\n工具”的智能体；\n2.重塑 LUI 交互： 拒绝枯燥对\n话，探索意图驱动的流式 UI\n与动态组件生成，让 AI 输出像\n电影般丝滑；\n3.编排超级工作流： 深入客\n服、数据、ERP 等实战场景，\n设计 Human-in-the-loop（人\n机协作）机制，平衡 AI 的创造\n力与执行严谨性；\n4.模型精细化调教： 编写结构\n化 Prompt，配合 RAG、\nFunction Calling 与向量数据\n库，攻克模型“幻觉”与“死\n循环”；\n\n5.数据驱动进化： 建立“交互\n爽感”与“任务成功率”双重\n指标，通过 Bad Case 复盘与\nA/B 测试持续迭代。\n职位要求\n我们需要这样的你 (任职要求)\n1.硬核跨界玩家： 本科及以\n上，兼具 C 端 AIGC 敏锐度与\nB 端 SaaS/RPA 逻辑功底。有\nLLM/Agent 落地案例者优先；\n2.技术原理通透： 熟练掌握\nTransformer、Token、RAG\n等核心概念；对 ReAct、\nCoT、Multi-Agent 架构有实战\n理解；\n3.工具栈满级： 深度使用过\nLangChain, Dify, Coze 或\nLangGraph 等框架，能把业务\n需求拆解为精密 SOP；\n4.Prompt 大师： 具备极强的\n逻辑拆解力，能像指挥交响乐\n一样控制模型输出的稳定性与\n高质量；\n5.极客精神： 24 小时高频冲浪\n（HuggingFace/GitHub/X）\n，对新技术有雷达般的嗅觉。" },
+      { id: 20, company: "蚂蚁集团", bu: "蚂蚁数科 · Web3 产品", title: "【转正实习】AI&Web3产品经理", city: OMIT, type: "实习", tags: ["Web3", "国际化潜在", "实习"], jd: "职位描述\n团队介绍：蚂蚁数科Web3产\n品部，负责海外Web3+AI创新\n产品方向，旗下包括ZAN、\nJovay、Anvita等多个科技服\n务品牌\n岗位职责：\n1. 参与海外Web3+AI驱动产\n品的规划与设计，探索创\n新领域的产品机会；\n2. 深入理解用户需求与业务\n场景，将技术能力转化为\n可落地的产品功能，撰写\nPRD、原型图及验收标\n准；\n\n3. 协同算法、研发、设计、\n运营等多职能团队，推动\n产品从概念到上线的全流\n程闭环；\n4. 跟踪Web3+AI行业趋势与\n竞品动态，探索数字资\n产、数字货币、Agentic\nEconomy等前沿方向的应\n用机会；\n5. 监控产品核心指标，持续\n优化产品体验与商业价\n值。\n职位要求\n1. 本科及以上学历；\n2. 对Web3及AI技术有浓厚兴\n趣，了解区块链、机器学\n习等基本原理；\n3. 具备良好的逻辑思维、沟\n通表达和文档撰写能力；\n4. 有产品实习、项目经历或\n校园创新实践者优先。\n加分项（满足其一即可）：\n1. 熟悉主流Web3及AI产品并\n有深度使用体验；\n2. 有编程基础，能与工程师\n高效对话；\n3. 在校期间参与过黑客松或\n创业项目；\n4. 有公众号运营、用户调\n研、数据分析等产品向实\n践经验。" },
+      { id: 21, company: "蚂蚁集团", bu: "—", title: "【应届补招】AI产品经理", city: OMIT, type: "社招校招", tags: ["大模型应用", "AIGC / 创作", "校招 / 应届"], jd: "职位描述\n1. 参与AI驱动产品的规划与\n设计，包括但不限于智能\n客服、AIGC内容生成、推\n荐系统、语音交互、视觉\n识别、数据分析平台等；\n\n2. 深入理解用户需求与业务\n场景，将AI技术能力转化\n为可落地的产品功能，撰\n写PRD、原型图及验收标\n准；\n3. 协同算法、研发、设计、\n运营等多职能团队，推动\nAI产品从概念到上线的全\n流程闭环；\n4. 跟踪AI行业趋势与竞品动\n态，探索大模型、生成式\nAI、Agent系统等前沿方向\n的应用机会；\n5. 监控产品核心指标（如准\n确率、使用率、用户满意\n度），持续优化产品体验\n与商业价值。\n职位要求\n基本条件：\n1. 本科及以上学历；\n2. 对人工智能技术有浓厚兴\n趣，了解机器学习、自然\n语言处理、计算机视觉等\n基本原理；\n3. 具备良好的逻辑思维、沟\n通表达和文档撰写能力；\n4. 有产品实习、项目经历或\n校园创新实践者优先。\n加分项（满足其一即可）：\n1. 熟悉主流AI产品（如\nChatGPT、Midjourney、\n通义千问、文心一言）并\n有深度使用体验；\n2. 有编程基础（Python/SQL\n等），能与算法工程师高\n效对话；\n3. 在校期间参与过AI相关竞\n赛（如Kaggle、天池、挑\n战杯）、黑客松或创业项\n目；\n\n4. 有公众号运营、用户调\n研、数据分析等产品向实\n践经验。" },
+      { id: 22, company: "阿里巴巴集团", bu: "高德地图", title: "高德-AI 产品专家-Agent 方向", city: OMIT, type: "社招", tags: ["Agent / 助手", "大模型应用", "数据驱动"], jd: "职位描述\n我们要构建能够推理、规划并\n在真实工作流中采取行动的智\n能化自主 AI 代理\n（Autonomous AI\nAgents）。这些代理超越了传\n统的对话交互，能够在复杂、\n高风险的环境中跨工具和系统\n执行有意义的任务 。我们正在\n寻找一位具备深厚技术背景和\n产品直觉的专家，将长时记\n忆、工具使用和规划等前沿能\n力转化为具有实际应用价值的\n产品 。\n岗位职责：\n1、负责单智能体 / 多智能体产\n品的定义、架构设计与体验规\n划；\n2、设计 Agent 的任务编排、\n工具调用、记忆管理、RAG 等\n核心机制；\n3、结合业务场景制定模型路\n由、协同与异常兜底方案;\n4、构建 Agent 测评体系，推\n动数据、评测与产品迭代闭\n环；\n5、挖掘高 ROI 场景，定义完\n整的 Agent 工作流与用户体\n验。\n职位要求\n任职要求：\n1、具备 LLM、RAG、\nFunction Calling、Agent\nFramework 等相关实践经验\n2、理解大模型训练、微调、\n对齐等基础原理\n\n3、对数据敏感，能通过数据\n分析驱动产品决策\n4、有 Agent / AI 产品从 0 到\n1 经验者优先\n5、具备良好的跨团队协作能\n力，能连接工程、算法与业务\n加分项：\n1、有多智能体协作系统设计\n经验；\n2、会使用低代码 / 无代码工具\n快速验证复杂逻辑；\n3、对垂直领域自动化工作流\n有深刻理解。" },
+      { id: 23, company: "阿里巴巴集团", bu: "未标明 BU（PDF 独立条目）", title: "AI产品经理", city: OMIT, type: "社招", tags: ["大模型应用", "Agent / 助手"], jd: "职位描述\n1. 深入理解业务场景，通过\n用户调研、行业分析及研\n究挖掘AI落地的创新机\n会；\n2. 负责AI应用/平台的方案设\n计，包括核心功能定义、\n工作流（Workflow）编排\n及Prompt设计，输出高质\n量的产品路线图；\n3. 与算法工程师、后端开发\n紧密协作，将大模型能力\n（LLM、多模态、Agent、\nRAG等）转化为可规模化\n的产品功能；\n4. 建立产品评估体系，利用\n数据工具（SQL/Python）\n监控指标波动，根据数据\n反馈和用户原声持续优化\n算法表现与用户体验。\n职位要求\n1. 本科及以上学历，计算\n机、人工智能、电子通\n信、数学、心理学、统计\n学等相关专业优先；\n\n2. 了解AIGC相关知识，包括\n但不限于文本生成、图像/\n视频生成、提示词工程；\n3. 具备基础的数据处理能\n力，熟悉SQL/Python或数\n据分析工具者优先；\n4. 具备优秀的抽象思维和问\n题拆解能力； 对新技术有\n强烈渴望，始终保持对事\n物本质的探究心" },
+      { id: 24, company: "腾讯", bu: "混元", title: "混元 AI 产品经理", city: OMIT, type: "社招", tags: ["大模型应用", "Agent / 助手", "数据驱动"], jd: "岗位职责\n•\n1.围绕大模型、Agent、\nContext、Memory、工作\n流、人机协作等方向，参\n与产品方向设计与关键路\n径判断； 将模型能力与用\n户场景结合，完成需求抽\n象、产品方案设计和版本\n推进；\n2.深入理解用户在创作、\n决策、协同、知识沉淀、\n效率提升等场景中的真实\n需求，形成产品判断；\n3.联动算法、工程等团\n队，推动产品高质量落\n地；\n4.基于用户反馈、行为数\n据和案例分析，持续优化\n产品体验与核心机制；\n5.对AI 产品进行评估体系\n的搭建和执行，能够从模\n型效果、任务完成度、用\n户价值、稳定性等维度设\n计评估方法，推动产品持\n续迭代；\n6.总结 AI 产品方法论，沉\n淀可复用的产品认知与工\n作框架。\n岗位要求\n\n•\n1.本科及以上学历，国内\n外优秀院校优先；\n2.数学、计算机、工程、\n物理、认知科学、心理\n学、哲学等相关背景优\n先；\n3.有大模型、Agent、AI 应\n用、Copilot、搜索/知\n识、工作流等相关产品经\n验优先；\n4.有较强工程理解力，能\n够和算法、工程团队进行\n高质量协作；\n5.有较强结构化思考能\n力，能把复杂问题讲清\n楚、拆明白；\n6.具备 AI 产品评估意识和\n能力，能判断产品效果、\n定位问题，并推动优化闭\n环；\n7.自驱力强，有\nownership，能在高不确\n定性中持续推进。" },
+      { id: 25, company: "腾讯", bu: "元宝", title: "元宝-AIGC产品经理", city: OMIT, type: "社招", tags: ["AIGC / 创作", "ToC", "数据驱动"], jd: "岗位职责\n\n•\n1.负责元宝App内AIGC相\n关产品（图像生成、视频\n生成、创意工具等）的迭\n代路径的规划与迭代路\n径；\n2.深入洞察用户需求与行\n业趋势，探索AIGC在内容\n创作、社交互动等场景的\n创新应用，提升产品竞争\n力与用户体验；\n3.协同算法、工程、设\n计、运营团队，推动产品\n从0到1的闭环落地，确保\n项目高质量交付；\n4.建立产品数据指标体\n系，通过用户反馈与数据\n分析持续优化产品功能，\n提升核心指标；\n5.关注国内外AIGC技术动\n态与竞品动向，输出前瞻\n性产品策略，为团队提供\n方向指导。\n岗位要求\n•\n1.3年以上互联网产品经\n验，至少1年AIGC/图像/视\n频类产品策划经验，有成\n功上线案例者优先；\n2.熟悉生成式AI技术原\n理，能与技术团队高效沟\n通需求；\n3.具备敏锐的用户洞察与\n场景设计能力，能结合AI\n能力打造差异化产品体\n验；\n4.数据驱动思维，擅长通\n过A/B测试、用户调研等方\n式验证产品假设；\n5.出色的项目推动与跨团\n队协作能力，能适应快节\n奏迭代。" },
+      { id: 26, company: "腾讯", bu: "微信", title: "微信-产品经理-AI方向", city: OMIT, type: "社招", tags: ["大模型应用", "ToC", "微信生态"], jd: "岗位职责\n\n•\n1.从真实场景下的用户需\n求出发，负责探索微信AI\n应用场景并推动落地；\n2.跟进并理解大模型等相\n关技术发展，深刻理解模\n型进化带来的改变，在产\n品的设计中充分应用模型\n能力。\n岗位要求\n•\n1.对 AI 在微信生态下的独\n特价值有想法，有思考，\n有想象力；\n2.强烈的好奇心和探索\n欲，极强的执行力和推动\n力；\n3.积极主动，深入思考，\n实事求是，诚恳谦逊；\n4.有 AI 助手方向算法/策略\n侧工作经历加分。" },
+      { id: 27, company: "月之暗面（Moonshot AI）", bu: "Kimi / Agent 产品", title: "用户产品经理-Agent方向", city: OMIT, type: "社招", tags: ["Agent / 助手", "ToC", "Coding 工具"], jd: "职位描述：\n1. 负责月之暗面agent产品的\nC端用户体验迭代和优化，\n包括但不限于OK\nComputer以及\nResearcher等。\n2. 定义与深入理解用户体验\n需求，不断推进产品迭代\n与改进提升用户体验\n3. 研究国内外agent与AI\ncoding产品趋势，优化迭\n代产品与战略\n职位要求：\n1. 3年以上C端产品经理相关\n经验，本科及以上学历\n2. AI产品的Super-user，有\n自己独特的AI使用场景与\n值得分享的use case\n\n3. 对于用户体验有极致的追\n求，对于海外的AI产品的\n体验有自己的判断与\ntaste，对于Agent与AI\nCoding产品的C端体验能\n给出solid的改进建议\n4. 优秀的团队协作能力，能\n够与研发与研究员团队协\n作共同达成目标" },
+      { id: 28, company: "月之暗面（Moonshot AI）", bu: "—", title: "AI Native 产品经理（C端 / Agent方向）", city: OMIT, type: "社招", tags: ["Agent / 助手", "ToC", "大模型应用"], jd: "职位描述\n职位定位：面向AI时代的原生\n产品设计者，能够理解模型能\n力边界，并将其转化为用户可\n感知的产品体验与创新功能。\n岗位职责\n 深度参与AI产品（如Agent /\nClaw 类）的设计与迭代，从0-\n1或1-10推进核心能力\n 理解大模型（LLM、多模态、\nAgent等）能力，设计可落地\n的用户场景与交互\n 将技术能力转化为C端用户可\n理解、可使用、可复用的功能\n（如：自动化、记忆、陪伴、\n生成等）\n 参与prompt设计、Agent流程\n设计、工具调用链路设计\n（function calling /\nworkflow）\n 与算法、工程紧密合作，推动\n模型能力在真实产品中的落地\n与优化\n 持续跟踪AI前沿（OpenAI、\nAnthropic、开源模型等），\n并转化为产品机会\n任职要求\n\n 2年以上产品经验，有C端产品\n经验优先\n 强AI理解能力（核心）：\n 熟悉大模型基本原理\n（prompt、embedding、\nRAG、Agent等）\n 对AI产品有系统性认知（不仅\n是chatbot）\n 能将抽象技术能力转化为用户\n价值（不是“能做什么”，而\n是“用户为什么要用”）\n 有较强的产品结构能力 & 交互\nsense\n 有探索欲，对AI新产品高度敏\n感（如ChatGPT、Claude、\nPerplexity等）\n 加分项：\n 写过prompt / 做过Agent / 用\n过LangChain等\n 有AI产品从0-1经验\n? 我们在找什么样的人（更直\n白版）\n 不是“写PRD的人”，而是能\n把模型能力变成产品体验的人\n 能回答：\n ? 这个能力为什么要做？\n ? 用户什么时候会用？\n ? 为什么非AI不可？" },
+      { id: 29, company: "月之暗面（Moonshot AI）", bu: "—", title: "AI 产品实习生", city: "北京", type: "实习", tags: ["Agent / 助手", "实习", "Coding 工具"], jd: "职位描述\n职责：\n•\n通过竞品分析、用户调研\n等方式，挖掘 Agent 的高\n价值应用场景\n•\n设计并搭建不同场景下的\nBenchmark，配合模型训\n练\n\n•\n通过设计合理高效的\nAgent Harness，推动\nAgent 新能力的产品化落\n地\n•\n设计产品，优化用户体\n验，监控用户数据和反\n馈，推进产品的迭代优化\n要求：\n•\nvibe coding 经验丰富，能\n利用 AI 快速搭建原型、验\n证想法\n•\n了解 Agent 的基本技术原\n理，关注 Agent 前沿技术\n动态\n•\n经常使用各种 AI 产品（包\n括但不限于 Open Claw、\nCodex、Claude code\n等），有好奇心，能说出\n它们的优缺点\n•\n自主性强，能提出解决问\n题的方案；逻辑清晰，能\n讲清楚每件事的CoT\n•\n实习时间至少4个月，每周\n至少4天，Base北京\n加分项：\n•\n曾在很短的时间内学习一\n项新东西并且达到 Top 水\n平\n•\n了解如何通过工程方式提\n升 AI 产出物的效果\n•\n开源项目经验/ 前后端开发\n经验\n你将收获：\n•\n高效的 peer learning，与\n算法、工程团队密切合作\n•\n有机会独立负责完整的产\n品模块，实现你的创新想\n法" },
+      { id: 30, company: "月之暗面（Moonshot AI）", bu: "—", title: "AI Agent 大模型产品实习生", city: "北京", type: "实习", tags: ["Agent / 助手", "实习", "大模型应用"], jd: "职位描述：\n1. 探索AI Agent在通用领域\n的落地与应用\n\n2. 思考在通用用户场景和专\n业领域下分别如何评估AI\n能力并且建立相关评估与\n训练数据集\n3. 与算法团队配合，通过综\n合手段，提升模型效果\n4. 线上AI Agent产品迭代优\n化\n职位要求：\n1. 本科及以上学历，计算机\n相关专业优先\n2. 逻辑能力强，具备体系化\n思考能力\n3. 独立解决问题能力强，有\n自主负责项目经历者优先\n4. 能玩，爱折腾，对生活与\nAI充满热情与兴趣\n5. 有AI相关项目经验或代码\n能力优先\n6. 了解AI Agent相关知识优\n先\n7. 实习时间至少4个月，\nBase北京" },
+      { id: 31, company: "阶跃星辰", bu: "社招（Moka 94904）", title: "AI Agent 产品经理", city: OMIT, type: "社招", tags: ["Agent / 助手", "商业化 / 增长", "数据驱动"], jd: "岗位职责\n1. 与算法、数据、工程团队\n紧密协作，负责 Agent 相\n关产品规划、模型能力建\n设与版本迭代，推动模型\n及agent关键能力模块（工\n具调用、记忆/上下文、多\n智能体协作等）落地并持\n续优化。\n2. 持续跟踪多模态、LLM 、\nRAG与 Agent use 技术与\n产品趋势，结合客户需求\n反馈，定期开展对标分析\n与竞争力复盘，推动模型\n能力升级及产品的创新，\n支撑商业化落地并达成业\n务目标。\n\n3. 定义数据与效果理想态，\n深度参与数据采集/标注、\n训练、评估、实验与上线\n全流程，推动训练-评测-迭\n代闭环，提高模型迭代效\n率与效果稳定性。\n4. 从用户视角定义全新的人\n机交互体验，并细化到对\n模型效果的理想态定义和\n评测体系的构建；持续迭\n代/完善评估体系，包括但\n不限于评估方法论、标\n准、Benchmark与指标口\n径等，对模型效果与关键\n业务指标负责。\n5. 建立 badcase 机制与问题\n归因框架，推动问题定\n位、方案设计、验证上线\n与线上监控闭环，持续提\n升模型可用性、稳定性与\n可控性。\n岗位要求\n1. 本科及以上学历，计算\n机、软件工程、人工智能\n等相关专业优先。\n2. 2年以上 AI 产品经验，至\n少1年 LLM / 多模态 /\nAgent 相关产品或评测经\n验，优秀的项目管理能\n力。\n3. 具备扎实的技术理解力，\n熟悉 LLM / 多模\n态/MCP/multi-agent /\nGUI Agent 的基本原理与\n业界进展，理解 agent 基\n本模块（工具调用、记忆/\n上下文等）；愿意持续阅\n读论文跟直接体验海内外\n产品，并将使用体验转化\n为评测与产品改进思路。\n\n4. 数据驱动意识与逻辑能力\n强，具备基础数据分析能\n力与指标体系搭建能力，\n能通过 badcase 洞察模型\n本质问题，并提出优化方\n案。\n5. 熟练运用 Prompt\nEngineering，能将业务流\n程抽象为模型可理解、可\n执行的指导性原则。\n6. 具备良好的客户沟通与跨\n团队协作能力，能深入理\n解需求并输出解决方案，\n具备强交付意识，适应快\n节奏工作方式。" },
+      { id: 32, company: "阶跃星辰", bu: "实习（Moka 94905）", title: "【实习】AI产品经理实习生（开发者方向）", city: OMIT, type: "实习", tags: ["Agent / 助手", "平台 / 开发者", "实习"], jd: "职位描述\n职位详情\n职位描述\n参与通用Agent智能产品建\n设，推进Agent在开发者生\n态、通用场景等场景的落地，\n实现业务流程的智能化和自动\n化。\n负责梳理及跟进业务需求，制\n定可行的AI产品方案。产品建\n设功能包括但不限于前台交\n互、数据收集、模型打造等，\n并撰写清晰、有说服力的产品\n文案，以有效传达产品价值和\n优势。\n联动技术、算法、设计团队，\n推动AI产品功能落地，确保最\n终实施与产品目标对齐，实现\n高效的团队协作和产品交付。\n职位要求\n本科大三及以上学历，计算\n机、工业设计等相关专业优\n先，具备落地场景相关专业知\n识和技能背景。\n\n出色的解决问题能力和创新能\n力，能够从实际业务问题出\n发，解决复杂的技术挑战，推\n动产品创新和优化。\n对AI技术及用户产品充满热\n情，具有敏锐的市场洞察力和\n技术创新精神，能够把握行业\n趋势和用户需求。\n具备较强的数据分析能力，擅\n长通过AI能力解决实际业务问\n题，提升产品效果和用户体\n验。\n优秀的文案撰写能力，能够撰\n写简洁、准确、有吸引力的产\n品文案，有效传达产品功能和\n价值。\n其他说明\n实习时间3-6个月，每周至少4\n天，能够全身心投入实习工\n作，并具备一定的时间灵活\n性。" },
+      { id: 33, company: "MiniMax（稀宇科技）", bu: "海螺 AI", title: "AIGC产品经理-海螺AI方向", city: OMIT, type: "社招", tags: ["AIGC / 创作", "视频 / 图像", "ToC"], jd: "职位描述\n1、负责C端AI内容产品的规划\n和设计工作，结合业务场景及\n行业诉求孵化创新产品；\n2、探索用户需求、市场空\n间，抽象制定出完善的产品策\n略与方案；\n3、与研发和算法团队紧密配\n合，进行高质量迭代，并能基\n于业务充分发挥AI能力。\n职位要求\n1、对视频、图片AI算法了\n解，有内容产品经验优先；\n\n2、对AIGC有热情，了解国内\n外行业动态 ；\n3、高效项目推进能力，出色\n的沟通能力，有较强自驱力和\n团队合作精神 ；\n4、思维活跃，有好奇心和责\n任心。" },
+      { id: 34, company: "MiniMax（稀宇科技）", bu: "核心产品", title: "AIGC产品经理", city: OMIT, type: "社招", tags: ["Agent / 助手", "AIGC / 创作", "数据驱动"], jd: "职位描述\n1、参与Agent产品各环节规\n划，制定产品战略与路线图，\n与研发、设计、算法、市场等\n团队紧密协作，确保产品高\n效、高质量地迭代；\n2、搭建科学的Agent评估体\n系，定义关键效果指标，持续\n优化产品效果与功能，对产品\n的最终效果和市场表现负责；\n3、探索前瞻性功能和创新应\n用场景，挖掘机会点，持续拓\n展Agent产品的能力边界和商\n业价值。\n职位要求\n1、 C端移动互联网1-3年经\n验，有AIGC、商业化、海外市\n场经验者更佳；\n2、对AIGC领域（尤其是\nAgent）感兴趣，自己有过相\n关研究或实践项目，有自己的\n想法和认知；\n3、 具备全局视野和良好的产\n品sense，富有同理心和责任\n心；\n4、 自驱力和学习能力强，有\n良好的抗压能力，能够合理协\n调各团队资源共同完成目标。" },
+      { id: 35, company: "MiniMax（稀宇科技）", bu: "Talkie / 星野", title: "AIGC产品经理-talkie星野方向", city: OMIT, type: "社招", tags: ["AIGC / 创作", "国际化潜在", "ToC"], jd: "职位描述\n我们正在寻找对大模型技术充\n满热情与好奇心的未来领袖。\n作为团队的核心成员，你将：\n\n1、驱动核心产品规划：参与\n主导我们下一代大模型产品，\n将前沿技术转化为具有巨大用\n户价值的产品；\n2、深度参与技术协同： 与顶\n尖研发团队紧密合作，深刻理\n解模型，并在此基础上定义产\n品需求；\n3、洞察全球市场与用户：为\n产品注入国际化视野，助力我\n们的产品在全球舞台保持领\n先。\n职位要求\n1、卓越的技术理解力，具备\n良好的数据结构和算法基础，\n熟练掌握Python/SQL等工具\n者优先；\n2、出色的产品思维，对AI产\n品的交互设计、能力边界等问\n题有自己独到的思考；\n3、极强的自驱力与好奇心，\n主动探索未知领域，乐于学习\n并能快速掌握新知识。" },
+      { id: 36, company: "MiniMax（稀宇科技）", bu: "Top Talent 实习", title: "大模型产品经理-实习-Top Talent", city: OMIT, type: "实习", tags: ["大模型应用", "AIGC / 创作", "实习"], jd: "职位描述\n我们正在寻找对大模型产品充\n满好奇心的未来领袖。根据你\n的天赋与兴趣，你将深度参与\n以下一个或多个方向的工作：\n1、驱动核心产品规划： 参与\n甚至主导我们下一代大模型产\n品，将前沿技术转化为具有巨\n大用户价值的产品；\n2、定义用户体验与视觉语\n言： 主导或深度参与AIGC产\n品（图文/视频/音频生成等）\n的交互与视觉设计，确保其国\n际一线的体验标准。\n3、负责增长与传播： 基于对\n用户与数据的洞察，或你对内\n容与社区的敏感度，驱动产品\n的迭代、增长与市场传播。\n\n4、洞察全球市场与用户： 为\n业务注入国际化视野，助力我\n们的产品在全球领先。\n职位要求\n我们相信，才华与热爱远比经\n验更重要。我们期待你具备以\n下任一特质：\n1、卓越的技术理解力，具备\n良好的数据结构和算法基础，\n熟练掌握Python/SQL等工具\n者优先；\n2、出色的产品思维，对AI产\n品的交互设计、能力边界等问\n题有自己独到的思考；\n3、对美有极致的追求，对流\n行有天然的嗅觉。你的作品集\n或你的社交平台内容，能证明\n你的审美与网感；\n4、真正的国际化视野， 能快\n速捕捉全球信息，理解不同市\n场的用户与文化并转化成商业\n价值。" },
+      { id: 37, company: "字节跳动", bu: "豆包 · AI 创新业务", title: "产品经理-AI创新业务", city: OMIT, type: "校招", tags: ["大模型应用", "ToC", "数据驱动"], jd: "职位描述\n团队介绍：字节跳动AI创新业\n务团队，在这里你将有机会参\n与到行业前沿产品的规划设\n计，开拓自己的行业视野，与\n先进团队共同成长。\n1、负责豆包App端产品功能策\n略的探索和落地，激发用户更\n多使用场景，也保证极致的用\n户体验；\n2、主导并协同研发、模型与\n评测团队，完成用户需求分\n析、产品及策略的设计、效果\n的定义与评估等环节。\n职位要求\n\n1、2026届获得本科及以上学\n历，人工智能、计算机、统计\n学等相关专业优先；\n2、积极乐观且有韧性，对产\n品有想法、有热情，对产品体\n验细心敏感；\n3、有出色的产品和洞察理解\n能力，能跨团队解决解决问\n题、促成合作，推动方案落\n地，能结合数据敏感与用户同\n理心作决策；\n4、有深度思考和自我否定的\n习惯，能够积极主动发现问题\n和解决问题；\n5、有创业精神与好奇心，能\n面对变化，全局落地最优解。" },
+      { id: 38, company: "字节跳动", bu: "豆包 · AI 创新业务", title: "产品实习生-AI创新业务", city: OMIT, type: "实习", tags: ["大模型应用", "实习", "ToC"], jd: "职位描述\n日常实习：面向全体在校生，\n为符合岗位要求的同学提供为\n期3个月及以上的项目实践机\n会。\n团队介绍：我们是字节跳动旗\n下AI创新业务团队，目前有多\n个 AI 相关创新产品孵化中，团\n队氛围好，成长空间大，期待\n你的加入。\n1、负责豆包App端产品功能策\n略的探索和落地，激发用户更\n多使用场景，也保证极致的用\n户体验；\n2、主导并协同研发、模型与\n评测团队，完成用户需求分\n析、产品及策略的设计、效果\n的定义与评估等环节。\n职位要求\n1、本科及以上学历在读，人\n工智能、计算机、统计学等相\n\n关专业优先；\n2、积极乐观且有韧性，对产\n品有想法、有热情，对产品体\n验细心敏感；\n3、有出色的产品和洞察理解\n能力，能跨团队解决问题、促\n成合作，推动方案落地，能结\n合数据敏感与用户同理心作决\n策；\n4、有深度思考和自我否定的\n习惯，能够积极主动发现问题\n和解决问题；\n5、有创业精神与好奇心，能\n面对变化，全局落地最优解。" },
+      { id: 39, company: "字节跳动", bu: "豆包 · AI 创新业务", title: "大模型产品经理-AI创新业务", city: OMIT, type: "校招", tags: ["大模型应用", "模型效果 / 数据", "校招 / 应届"], jd: "职位描述\n团队介绍：字节跳动AI创新业\n务团队，在这里你将有机会参\n与到行业前沿产品的规划设\n计，开拓自己的行业视野，与\n先进团队共同成长。\n1、负责豆包的模型效果、需\n求分析和产品设计\n2、从用户视角定义产品体\n验，并细化到对模型训练数据\n的理想态定义和标准制定；\n3、与算法等团队紧密协作，\n全流程参与模型训练和实验迭\n代；\n4、结合模型评测、用户调\n研、线上数据反馈等，不断完\n善认知并制定相应的迭代策\n略；\n5、对行业动态、前沿研究和\n新产品持续保持关注、一手体\n验和思考。\n职位要求\n1、2026届获得本科及以上学\n历，人工智能、统计学等相关\n专业优先；\n\n2、学习能力强，对AI有足够\n的热情；\n3、聪明且自驱，具备良好的\n逻辑思维和团队协作精神；\n4、具有愿景和目标驱动，具\n备强交付意识和沟通协作能\n力，适应快节奏的工作方式；\n5、有AI相关创业经历优先。" },
+      { id: 40, company: "字节跳动", bu: "Data AML · 豆包大模型", title: "豆包大模型AI产品实习生-Data AML", city: OMIT, type: "实习", tags: ["平台 / 开发者", "实习", "数据驱动"], jd: "职位描述\nByteIntern：面向2027届毕业\n生（2026年9月-2027年8月期\n间毕业），为符合岗位要求的\n同学提供转正机会。\n团队介绍：Data AML是字节跳\n动的机器学习中台，为抖音/今\n日头条/西瓜视频等业务提供推\n荐/广告/CV/语音/NLP的训练\n和推理系统。为公司内业务部\n门提供强大的机器学习算力，\n并在这些业务的问题上研究一\n些具有通用性和创新性的算\n法。同时，也通过火山引擎将\n一些机器学习/推荐系统的核心\n能力提供给外部企业客户。\n1、参与AI平台的产品建设与\n迭代；\n2、通过用户调研、产品调\n研、数据分析等方式挖掘客户\n需求，产出需求文档并推进功\n能落地；\n3、跟踪产品上线效果及用户\n反馈，为产品功能优化提供合\n理建议；\n4、通过培训、教学文档等方\n式为用户提供支持，保障用户\n高效使用AI平台。\n职位要求\n\n1、2027届本科及以上学历在\n读，计算机科学、人工智能、\n软件工程、电子信息、通信工\n程等相关专业优先；\n2、逻辑清晰，具有良好的问\n题分析能力和问题解决能力；\n3、出色的沟通和团队合作能\n力，能够与多个团队紧密协\n作；\n4、有互联网产品实习经历优\n先。" },
+      { id: 41, company: "字节跳动", bu: "豆包爱学", title: "AI产品实习生（用户产品方向）-豆包爱学", city: OMIT, type: "实习", tags: ["教育 / 学习", "大模型应用", "实习"], jd: "职位描述\nByteIntern：面向2027届毕业\n生（2026年9月-2027年8月期\n间毕业），为符合岗位要求的\n同学提供转正机会。\n团队介绍：豆包爱学业务，包\n含自适应学习中国地区、国际\n化、语言学习等3个大方向，\n业务核心应用AI算法、丰富的\n内容以及相关的学习动力激\n励、学习工具等手段，期望打\n造下一代的创新性学习产品，\n提升广大学习者的学习能力及\n激发潜力。\n1、参与AI教育产品的全生命\n周期管理，包括市场研究、数\n据分析、产品需求输出、开\n发、测试和发布；\n2、理解数据和模型训练的运\n转方式，与算法和数据团队配\n合，灵活使用各种方式提升模\n型效果，确保数据驱动的决策\n有效实施；\n3、持续跟进大模型技术发展\n的趋势，协调算法、工程、数\n据团队完成复杂项目交付，探\n索创新性产品解决方案。\n\n职位要求\n1、2027届本科及以上学历在\n读，计算机科学、软件工程、\n人工智能等相关专业优先；\n2、拥有数据分析能力，能够\n使用SQL、Python等工具进行\n数据提取和分析等优先；\n3、对AI有热情，对大模型行\n业有较好理解，深度体验或使\n用过大模型产品者优先；\n4、出色的沟通和协作能力，\n能够与不同背景的团队成员有\n效合作，拥有良好的项目管理\n能力，能够确保项目按时按质\n完成；\n5、具备产品思维和研发经\n验，对研发流程有基本的理\n解，对用户体验有较高的要\n求，不断追求产品交付。" },
+      { id: 42, company: "字节跳动", bu: "火山引擎 · 火山方舟", title: "AI产品实习生（豆包大模型方向）-火山方舟", city: OMIT, type: "实习", tags: ["平台 / 开发者", "大模型应用", "实习"], jd: "职位描述\nByteIntern：面向2027届毕业\n生（2026年9月-2027年8月期\n间毕业），为符合岗位要求的\n同学提供转正机会。\n团队介绍：火山方舟是火山引\n擎推出的一站式大模型服务平\n台，是中国大模型市场产品和\n份额领跑者。平台提供模型推\n理、评测、精调等全流程服\n务。方舟搭载了豆包及业界主\n流大模型，提供丰富的插件生\n态和AI应用开发服务，并通过\n稳定可靠的安全互信方案、专\n业的算法技术服务，全方位保\n障企业级AI应用落地。\n1、参与AI产品的需求调研、\n产品设计与功能迭代；\n\n2、通过用户调研、市场分析\n等方式了解需求和使用场景，\n产出需求文档并推进落地；\n3、跟踪产品上线效果、用户\n反馈，为产品功能的优化提供\n合理建议；\n4、通过优化产品体验、文档\n等方式为用户提供支持，提升\n产品体验和用户满意度；\n5、关注AI领域的技术和产品\n动态，为团队提供有价值的洞\n察和行动方案。\n职位要求\n1、2027届本科及以上学历在\n读，计算机科学、信息技术、\n人工智能或相关专业背景优\n先；\n2、对AI、大语言模型、多模\n态、机器学习ML/强化学习RL\n等底层技术有较为深度理解；\n3、了解产品经理基本的方法\n论、有一定编程、AI编程经验\n和能力；\n4、对AI产品、AI工具有强烈兴\n趣、重度用户优先，可提供作\n品。" },
+      { id: 43, company: "字节跳动", bu: "豆包", title: "AI产品实习生（功能方向）-豆包", city: OMIT, type: "实习", tags: ["大模型应用", "ToC", "实习"], jd: "职位描述\nByteIntern：面向2027届毕业\n生（2026年9月-2027年8月期\n间毕业），为符合岗位要求的\n同学提供转正机会。\n团队介绍：字节跳动豆包产品\n团队，在这里你将有机会参与\n到行业前沿产品的规划设计，\n开拓自己的行业视野，与先进\n团队共同成长。\n1、负责豆包App端产品功能策\n略的探索和落地，激发用户更\n\n多使用场景，也保证极致的用\n户体验；\n2、主导并协同研发、模型与\n评测团队，完成用户需求分\n析、产品及策略的设计、效果\n的定义与评估等环节。\n职位要求\n1、2027届本科及以上学历在\n读，专业不限；\n2、积极乐观且有韧性，对产\n品有想法、有热情，对产品体\n验细心敏感；\n3、有出色的产品和洞察理解\n能力，能跨团队解决问题、促\n成合作，推动方案落地，能结\n合数据敏感与用户同理心作决\n策；\n4、有深度思考和持续优化的\n习惯，能够积极主动发现问题\n和解决问题；\n5、有创业精神与好奇心，能\n面对变化，全局落地最优解；\n6、每周出勤至少4天，实习3\n个月及以上。" },
+      { id: 44, company: "字节跳动", bu: "豆包", title: "产品设计实习生-豆包", city: OMIT, type: "实习", tags: ["ToC", "实习", "设计向"], jd: "职位描述\nByteIntern：面向2027届毕业\n生（2026年9月-2027年8月期\n间毕业），为符合岗位要求的\n同学提供转正机会。\n团队介绍：字节跳动豆包产品\n团队，在这里你将有机会参与\n到行业前沿产品的规划设计，\n开拓自己的行业视野，与先进\n团队共同成长。\n1、负责豆包App端的功能设\n计；\n2、参与到产品设计迭代中，\n根据产品需求和限制寻找合适\n\n的设计方案，完善产品交互并\n输出UI细节及设计标注；\n3、参与用户调研，理解用户\n需求并转化成对应的设计思\n路；\n4、参与设计驱动的探索创\n新。\n职位要求\n1、2027届本科及以上学历在\n读，专业不限；\n2、积极乐观且有韧性，对产\n品有想法、有热情，对产品体\n验细心敏感；\n3、有出色的产品和洞察理解\n能力，能跨团队解决解决问\n题、促成合作，推动方案落\n地，能结合数据敏感与用户同\n理心作决策；\n4、有深度思考和自我否定的\n习惯，能够积极主动发现问题\n和解决问题；\n5、有创业精神与好奇心，能\n面对变化，全局落地最优解；\n6、每周出勤至少4天，实习3\n个月及以上。" },
+      { id: 45, company: "字节跳动", bu: "扣子 Coze", title: "AI产品经理-Coze", city: OMIT, type: "校招", tags: ["Agent / 助手", "平台 / 开发者", "校招 / 应届"], jd: "职位描述\n团队介绍：扣子是新一代AI\nAgent平台。在「扣子空\n间」，你可以和AI Agent协同\n办公；在「扣子开发平台」，\n你可以开发AI Agent和各类AI\n应用；而「扣子罗盘」能够帮\n你轻松搞定运维和效果调优。\n加入扣子，创造AI Agent无限\n可能！\n1、负责面向AI场景的工具类\n产品规划与设计，包括产品需\n\n求调研、产品方案输出等；\n2、与研发、设计等团队深度\n合作，负责产品方案的落地及\n功能实现，对落地实际效果和\n用户体验负责；\n3、参与用户场景研究，对AI\n落地和应用有思考并有所创\n新，持续提升产品易用性。\n职位要求\n1、2026届获得本科及以上学\n历，计算机、通信、人工智能\n等相关专业优先；\n2、有需求拆解和抽象能力，\n对相关技术实现有判断力，用\n户体验敏感，有研发背景或者\nAI产品经验优先；\n3、具备较强的学习能力和资\n源协调能力，能够推进跨团队\n合作项目落地；\n4、富有团队合作精神，强调\n团队合作，勇于挑战，能够独\n立思考，有创新意识。" },
+      { id: 46, company: "字节跳动", bu: "扣子 Coze", title: "产品实习生-Coze", city: OMIT, type: "实习", tags: ["Agent / 助手", "实习", "平台 / 开发者"], jd: "职位描述\n日常实习：面向全体在校生，\n为符合岗位要求的同学提供为\n期3个月及以上的项目实践机\n会。\n团队介绍：扣子是新一代AI\nAgent平台。在「扣子空\n间」，你可以和AI Agent协同\n办公；在「扣子开发平台」，\n你可以开发AI Agent和各类AI\n应用；而「扣子罗盘」能够帮\n你轻松搞定运维和效果调优。\n加入扣子，创造AI Agent无限\n可能！\n\n1、协助参与Agent效果评测与\n优化工作，在指导下捕捉多来\n源信号，尝试发现效果问题，\n在团队帮助下确定Agent改进\n空间及相应的改进手段；\n2、配合技术团队，了解从数\n据、模型、交互流程等方向推\n动Agent能力迭代的工作；\n3、关注Agent框架、大模型最\n新动态，在指导下定期整理相\n关信息，为产品决策提供一定\n的参考。\n职位要求\n1、本科及以上学历在读，计\n算机科学、人工智能或相关专\n业优先；\n2、工作认真细致，有责任\n心，执行力强，能够快速响应\n并落实工作安排；\n3、对AI Agent行业有浓厚的兴\n趣和强烈的好奇心，有主动学\n习的意愿；\n4、实习时长3个月及以上，每\n周出勤不小于4天。" },
+      { id: 47, company: "阿里巴巴集团", bu: "淘天 · 直播电商", title: "淘天直播电商-主播AI产品-杭州", city: "杭州", type: "社招", tags: ["直播电商", "大模型应用", "主播经营"], jd: "职位描述\n1、负责淘宝直播主播端AI产\n品建设，从主播经营场景出\n发，通过AI能力对主播开播链\n路进行重构，提升主播经营效\n率；\n2、持续挖掘用户需求，给出\n创新解法并联动各合作团队进\n行快速落地和验证，并进行后\n续方向的有效判断；\n职位要求\n1、对AI有好奇心，有探索意\n愿，有AI或AI To B经历优先，\n对LLM、RAG、I2V熟悉优先；\n\n2、自驱力、学习能力强、能\n够关注行业动态和新技术，预\n判趋势并转化为产品机会；\n3、有直播开播经验、对电商\n直播行业和以及主播经营模式\n有一定了解。" },
+    ];
+
+    /** 47 条链接与岗位 id 一一对应；#20 Web3 实习、#21 应届补招为蚂蚁校招链；#31–32 为阶跃星辰 Moka。 */
+    const JOB_URLS = [
+      "https://careers-tongyi.alibaba.com/off-campus/position-detail?lang=zh&positionId=100011240002&track_id=SSP1776848591750kaSpClmcHD8553",
+      "https://careers-tongyi.alibaba.com/off-campus/position-detail?lang=zh&positionId=100012980008&track_id=SSP1776848822591DxrqhcbHku7578",
+      "https://talent.dingtalk.com/off-campus/position-detail?lang=zh&positionId=100001400002&track_id=SSP1776849279605hGljEWBSIy6189",
+      "https://careers.aliyun.com/off-campus/position-detail?lang=zh&positionId=100008483020&track_id=SSP1776850911073gtHqWoLyhx7448",
+      "https://careers.aliyun.com/off-campus/position-detail?lang=zh&positionId=100007603004&track_id=SSP1776851117949DYkuNuzBGi7731",
+      "https://careers.aliyun.com/off-campus/position-detail?lang=zh&positionId=100009663004&track_id=SSP1776851117949PaaOQHYeye1184",
+      "https://campus-talent.alibaba.com/campus/position/199903200037?deptCodes=",
+      "https://campus-talent.alibaba.com/campus/position/199903240028?deptCodes=JM3EV0%2C5YTU0N%2CM0ALLT%2CVFRMM3%2CPIOLW3%2CS9O4SA%2C7EYTIH%2CWPLY3R%2C01BJXE%2CN1AHM4%2CRMGN6L%2CMNYQ2O%2C9433MD",
+      "https://campus-talent.alibaba.com/campus/position/199903920069?deptCodes=",
+      "https://campus-talent.alibaba.com/campus/position/199904240011?deptCodes=",
+      "https://campus-talent.alibaba.com/campus/position/199904340003?deptCodes=",
+      "https://talent.quark.cn/off-campus/position-detail?lang=zh&positionId=100010200013&track_id=SSP1776852267327cOSPjsnwdE5339",
+      "https://talent.quark.cn/off-campus/position-detail?lang=zh&positionId=100009580004&track_id=SSP1776852267327KQyKbZFwQQ6322",
+      "https://talent.quark.cn/off-campus/position-detail?lang=zh&positionId=100010900011&track_id=SSP1776852267327MREozPfjZD5211",
+      "https://talent.taotian.com/off-campus/position-detail?lang=zh&positionId=100010100019&track_id=SSP1776852436073rFsLgqaPKT2973",
+      "https://talent.taotian.com/off-campus/position-detail?lang=zh&positionId=100011300022&track_id=SSP1776852436073ZCbTkkcjIl2819",
+      "https://talent.antgroup.com/off-campus-position?positionId=25101407074933&tid=219feb6217768526887841922e21a0",
+      "https://talent.antgroup.com/off-campus-position?positionId=25101407074933&tid=219feb6217768526887841922e21a0",
+      "https://talent.antgroup.com/off-campus-position?positionId=26031209139908&tid=2182936917768536384923738e4dce",
+      "https://talent.antgroup.com/campus-position?positionId=26031809198071&tid=218269e117768537953481403e00fa",
+      "https://talent.antgroup.com/campus-position?positionId=26030308936576&tid=0b2754ee17768540934803383e4216",
+      "https://talent.amap.com/off-campus/position-detail?lang=zh&positionId=100012900006&track_id=SSP1776854237270kJFxezacYx3505",
+      "https://campus-talent.alibaba.com/campus/position/199903240028?deptCodes=H8XNGX%2CGT90UP%2C7UL46E%2C4KHBYK%2C7695L4%2C0PUXGE%2C9FKBXX%2C2HYX5I%2CP6159J%2CCORMMP",
+      "https://careers.tencent.com/jobdesc.html?postId=2045117140482293760",
+      "https://careers.tencent.com/jobdesc.html?postId=2030596831590903808",
+      "https://careers.tencent.com/jobdesc.html?postId=2037392058448248832",
+      "https://app.mokahr.com/apply/moonshot/148506?sourceToken=7bec6769f2bfa471e5c9ce21b6b1096b#/job/a0c03185-d0cf-4b25-afa3-82a6ff64439c",
+      "https://app.mokahr.com/apply/moonshot/148506?sourceToken=7bec6769f2bfa471e5c9ce21b6b1096b#/job/90ec12d1-684b-4aae-a243-838f94a2e1aa",
+      "https://app.mokahr.com/campus-recruitment/moonshot/148507?sourceToken=7bec6769f2bfa471e5c9ce21b6b1096b&sourceToken=36ae0fe79b871e0600f2b2cfe0a81ebb#/job/14e7f263-09b6-4e06-9700-5dc6d4c0d216",
+      "https://app.mokahr.com/campus-recruitment/moonshot/148507?sourceToken=7bec6769f2bfa471e5c9ce21b6b1096b&sourceToken=36ae0fe79b871e0600f2b2cfe0a81ebb#/job/057b17e7-a0c3-4335-88a6-7f65e1190998",
+      "https://app.mokahr.com/social-recruitment/step/94904#/job/718edc1c-dfba-4807-ba56-d24aae68e5da",
+      "https://app.mokahr.com/campus-recruitment/step/94905#/job/1f809d2c-a53d-4643-bc07-2f4f074ce716",
+      "https://vrfi1sk8a0.jobs.feishu.cn/index/position/7579523111286147366/detail",
+      "https://vrfi1sk8a0.jobs.feishu.cn/index/position/7520549080461887785/detail",
+      "https://vrfi1sk8a0.jobs.feishu.cn/index/position/7362070184364591387/detail",
+      "https://vrfi1sk8a0.jobs.feishu.cn/379481/position/7604792657089366323/detail",
+      "https://jobs.bytedance.com/campus/position/7527611402996156680/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7527611402996156680/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7533543586865531154/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7472624703070554386/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7618148265837611317/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7600376032197708037/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7620701727268407605/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7620702149246028037/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7549131431030802696/detail?spread=36PG96D",
+      "https://jobs.bytedance.com/campus/position/7537906743005038866/detail?spread=36PG96D",
+      "https://talent.taotian.com/off-campus/position-detail?lang=zh&positionId=100001240010&track_id=SSP1776857657664NJATueZDgB3283",
+    ];
+
+    const CAT_PRODUCT = [
+      "AI 平台/基础架构产品经理",
+      "AI 模型产品经理",
+      "AI 原生/应用产品经理",
+      "AI + 产品经理（赋能型）",
+    ];
+
+    function assignCategories(j) {
+      const s = j.title + "\n" + j.jd + "\n" + (j.tags || []).join(" ");
+      const has = (re) => re.test(s);
+      const pSet = new Set();
+      if (has(/MaaS|机器学习平台|推理系统|训练与推理|模型即服务|开发者平台|控制台|Playground|Skills|方舟|火山引擎|火山方舟|Data AML|扣子.*平台|API\s*文档|SDK|平台化|平台产品|算力调度|向量数据库|插件生态/i)) {
+        pSet.add("AI 平台/基础架构产品经理");
+      }
+      if (has(/模型效果|训练数据|评测体系|Benchmark|bad\s*case|微调|对齐|理想态|效果验收|模型迭代|数据采集|标注|评测闭环|Harness/i)) {
+        pSet.add("AI 模型产品经理");
+      }
+      if (has(/Agent|智能助手|AIGC|豆包(?!爱学)|微信.*AI|数字人|AI 原生|Vibe Coding|智能体|Claw|Coze|Kimi|千问|混元|元宝|秒悟|Copilot/i)) {
+        pSet.add("AI 原生/应用产品经理");
+      }
+      if (has(/电商|直播|主播|钉钉|合同|工程|客服|推荐系统|广告|搜索|经营效率|开播链路|本地生活|闪购|点餐|票务/i)) {
+        pSet.add("AI + 产品经理（赋能型）");
+      }
+      if (pSet.size === 0) pSet.add("AI 原生/应用产品经理");
+      return [...pSet];
+    }
+
+    function catClass(cat) {
+      const i = CAT_PRODUCT.indexOf(cat);
+      return "tag tag-c" + (i >= 0 ? i : 0);
+    }
+
+    /** 小节标题：长匹配优先，用于拆行与高亮 */
+    const JD_SECTION_LABELS = [
+      "岗位职责：", "职位要求：", "职位描述：", "任职要求：",
+      "职位详情", "职位描述", "职位要求", "岗位职责", "任职要求", "岗位要求",
+      "团队介绍", "加分项", "职责：", "要求：",
+    ];
+
+    /** 完整 JD 中加粗高亮的关键能力词（长词优先，避免截断复合词） */
+    const JD_CAPABILITY_KWS = [
+      "Prompt Engineering", "Function Calling", "Human-in-the-loop", "Multi-Agent", "Vibe Coding",
+      "OpenClaw", "LangChain", "LangGraph", "Claude Code", "GitHub Copilot", "ByteIntern",
+      "向量数据库", "提示词工程", "用户洞察", "竞品分析", "竞品", "数据分析", "跨团队协作", "跨团队",
+      "沟通协调能力", "项目推动力", "抗压能力", "产品规划", "路线设计", "功能设计", "需求洞察",
+      "人机协作", "工具调用", "多智能体", "智能体", "工作流", "生成式AI", "数据驱动",
+      "指标体系", "评测体系", "评测", "语音AI", "语音翻译", "TTS", "自然度", "共情", "表现力",
+      "大模型", "多模态", "AIGC", "Agent", "RAG", "LLM", "MaaS", "语音", "交互体验",
+      "Prompt", "Cursor", "Coze", "SQL", "Python", "API", "SDK", "embedding", "Benchmark",
+      "国际化", "海外", "ToC", "ToB", "SaaS", "商业化", "增长", "留存", "转化",
+      "数字人", "直播", "视觉", "开发者", "生态", "微调", "对齐", "编排",
+      "经验背景", "技术理解", "算法", "工程团队", "2B", "2C", "B端服务", "落地",
+      "3年及以上", "2年以上", "1年以上", "本科及以上学历",
+    ];
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function escapeAttr(s) {
+      return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    }
+
+    /**
+     * PDF/抽文按固定栏宽断行，pre 系样式会原样显示，导致卡片里每行极短。
+     * 合并「同一段落」内的换行，仅在空行、小节标题、列表项等处保留断行，再交给 pre-line 按屏宽重排。
+     */
+    function normalizeJdReflow(jd) {
+      if (!jd) return "";
+      const raw = jd.replace(/\r\n/g, "\n").split("\n");
+      const merged = [];
+      let forceNew = true;
+
+      function isNewBlockLine(t) {
+        const s = t.trimStart();
+        if (!s) return false;
+        return (
+          /^\d+[\.、]/.test(s) ||
+          /^[a-z]\.\s/i.test(s) ||
+          /^[•●○·]/.test(s) ||
+          /^[（(]\d+[）)]/.test(s) ||
+          /^(职位描述|职位要求|岗位职责|任职要求|岗位要求|团队介绍|加分项|职位详情)([:：\s\u200b]|$)/.test(s) ||
+          /^(职责：|要求：|岗位职责：|职位要求：|团队介绍：|ByteIntern|将负责)/.test(s) ||
+          /^日常实习：/.test(s) ||
+          /^你要来搞什么大事？/.test(s) ||
+          /^我们需要这样的你/.test(s) ||
+          /^基本条件：/.test(s) ||
+          /^任职要求[:：]?\s*$/.test(s) ||
+          /^岗位职责[:：]?\s*$/.test(s) ||
+          /^职位描述[:：]?\s*$/.test(s)
+        );
+      }
+
+      for (const line of raw) {
+        const t = line.trimEnd();
+        if (!t.trim()) {
+          forceNew = true;
+          continue;
+        }
+        const lead = t.trimStart();
+        if (merged.length === 0 || forceNew || isNewBlockLine(t)) {
+          merged.push(lead);
+          forceNew = false;
+        } else {
+          merged[merged.length - 1] += lead;
+        }
+      }
+      return merged.join("\n");
+    }
+
+    /**
+     * 合并段落后仍可能把「职位要求」「2.」等粘在上一行末尾；插入换行以便分点、分节阅读。
+     */
+    function formatJdLogicalBreaks(s) {
+      if (!s) return "";
+      let t = s.replace(/\r\n/g, "\n");
+      // 抽文常见：汉字之间多余空格
+      t = t.replace(/([\u4e00-\u9fff]) +(?=[\u4e00-\u9fff])/g, "$1");
+      const head = JD_SECTION_LABELS.join("|");
+      t = t.replace(new RegExp(`([^\\n])(?=(?:${head})(?![\\u4e00-\\u9fff]))`, "g"), "$1\n");
+      t = t.replace(new RegExp(`((?:${head}))\\s*(?=[1-9]\\d{0,2}[\\.、])`, "g"), "$1\n");
+      // 「文。2.」或「文2.」前换行
+      t = t.replace(/([\u4e00-\u9fff。；;：）\)】])([1-9]\d{0,2}[\.、])/g, "$1\n$2");
+      // 空格/空白分隔的连续条款「… 2. …」
+      t = t.replace(/(\s+)(?=[1-9]\d{0,2}[\.、]\s*)/g, "\n");
+      // 「职位描述1.」无空格
+      t = t.replace(/(职位描述|职位要求|岗位职责|任职要求|岗位要求)([1-9])/g, "$1\n$2");
+      // 子项「（1）」「（2）」前换行（紧跟汉字或标点）
+      t = t.replace(/([\u4e00-\u9fff。；;）\)])([（(][1-9]\d{0,2}[）)])/g, "$1\n$2");
+      // 项目符号列表
+      t = t.replace(/([^\n])(?=[•●○·])/g, "$1\n");
+      t = t.replace(/\n{3,}/g, "\n\n");
+      return t.trim();
+    }
+
+    function highlightJD(text) {
+      let out = escapeHtml(text);
+      const sectionLabels = [...JD_SECTION_LABELS].sort((a, b) => b.length - a.length);
+      for (const w of sectionLabels) {
+        const rw = escapeHtml(w);
+        if (!rw || !out.includes(rw)) continue;
+        out = out.split(rw).join("<mark class=\"hl\">" + rw + "</mark>");
+      }
+      const kws = [...JD_CAPABILITY_KWS].sort((a, b) => b.length - a.length);
+      const reMark = /(<mark\b[^>]*>[\s\S]*?<\/mark>)/g;
+      const parts = out.split(reMark);
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].startsWith("<mark")) continue;
+        let chunk = parts[i];
+        for (const kw of kws) {
+          const e = escapeHtml(kw);
+          if (!e) continue;
+          const re = new RegExp(e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          chunk = chunk.replace(re, (m) => "<strong class=\"jd-kw\">" + m + "</strong>");
+        }
+        parts[i] = chunk;
+      }
+      return parts.join("");
+    }
+
+    function companyKey(j) {
+      return j.company;
+    }
+
+    function jobHaystack(j) {
+      return [j.title, j.jd, (j.tags || []).join(" "), j.bu, j.type, j.city].join("\n");
+    }
+
+    function passCompany(j) {
+      if (!FILTER.company) return true;
+      return companyKey(j) === FILTER.company;
+    }
+
+    function passCategory(j) {
+      if (!FILTER.category) return true;
+      return j.cats.includes(FILTER.category);
+    }
+
+    function passHire(j) {
+      if (!FILTER.hire) return true;
+      const t = j.type || "";
+      if (FILTER.hire === "实习") return /实习/.test(t);
+      if (FILTER.hire === "社招") return /社招/.test(t);
+      if (FILTER.hire === "校招") return /校招/.test(t);
+      return true;
+    }
+
+    function passCity(j) {
+      if (!FILTER.city) return true;
+      const c = j.city || OMIT;
+      if (FILTER.city === OMIT) return c === OMIT;
+      return c === FILTER.city;
+    }
+
+    function passKeyword(j) {
+      const q = (FILTER.keyword || "").trim();
+      if (q) {
+        const low = jobHaystack(j).toLowerCase();
+        if (!low.includes(q.toLowerCase())) return false;
+      }
+      const agentOn = document.getElementById("kwAgent")?.checked;
+      const voiceOn = document.getElementById("kwVoice")?.checked;
+      const platOn = document.getElementById("kwPlatform")?.checked;
+      if (!agentOn && !voiceOn && !platOn) return true;
+      const h = jobHaystack(j);
+      let ok = true;
+      if (agentOn) ok = ok && /agent|智能体/i.test(h);
+      if (voiceOn) ok = ok && /语音|百聆|TTS|同声|音频/i.test(h);
+      if (platOn) ok = ok && /平台|MaaS|开发者|方舟|扣子|Playground|控制台|SDK|API|火山引擎/i.test(h);
+      return ok;
+    }
+
+    /** 列表：公司 / 类别 / 招聘 / 城市 / 关键词 / 投递状态 */
+    function passApplyFilter(j) {
+      if (!FILTER.apply) return true;
+      return getApplyStatus(j.id) === FILTER.apply;
+    }
+
+    /** 算类别个数：不含「类别」本身，含其它筛选与投递漏斗 */
+    function passForCategoryCounts(j) {
+      return passCompany(j) && passHire(j) && passCity(j) && passKeyword(j) && passApplyFilter(j);
+    }
+
+    /** 算招聘类型个数：不含「招聘类型」，含其它筛选与投递漏斗 */
+    function passForHireCounts(j) {
+      return passCompany(j) && passCategory(j) && passCity(j) && passKeyword(j) && passApplyFilter(j);
+    }
+
+    /** 算城市个数：不含「城市」，含其它筛选与投递漏斗 */
+    function passForCityCounts(j) {
+      return passCompany(j) && passCategory(j) && passHire(j) && passKeyword(j) && passApplyFilter(j);
+    }
+
+    function matchesHireType(j, hireVal) {
+      if (!hireVal) return true;
+      const t = j.type || "";
+      if (hireVal === "实习") return /实习/.test(t);
+      if (hireVal === "社招") return /社招/.test(t);
+      if (hireVal === "校招") return /校招/.test(t);
+      return true;
+    }
+
+    function jobCityNorm(j) {
+      return j.city && j.city !== OMIT ? j.city : OMIT;
+    }
+
+    /** 漏斗统计基数：不含投递状态，含类别 */
+    function passFunnelBase(j) {
+      return passCompany(j) && passCategory(j) && passHire(j) && passCity(j) && passKeyword(j);
+    }
+
+    function passList(j) {
+      return passFunnelBase(j) && passApplyFilter(j);
+    }
+
+    function formatMeta(j) {
+      const parts = [];
+      const buOk = j.bu && j.bu !== "—" && !/未注明|未标明|未写具体/i.test(j.bu);
+      if (buOk) parts.push(j.bu);
+      if (j.city && j.city !== OMIT) parts.push(j.city);
+      if (j.type && j.type !== OMIT) parts.push(j.type);
+      return parts.length ? parts.join(" · ") : "";
+    }
+
+    const jobsEnriched = JOBS.map((j) => ({
+      ...j,
+      url: JOB_URLS[j.id - 1] || "",
+      cats: assignCategories(j),
+    }));
+
+    function countJobsByCategory(baseList) {
+      const counts = Object.fromEntries(CAT_PRODUCT.map((c) => [c, 0]));
+      for (const j of baseList) {
+        for (const c of j.cats) {
+          if (counts[c] !== undefined) counts[c] += 1;
+        }
+      }
+      return counts;
+    }
+
+    function rebuildCategoryOptions() {
+      if (FILTER.category && !CAT_PRODUCT.includes(FILTER.category)) FILTER.category = "";
+      const base = jobsEnriched.filter(passForCategoryCounts);
+      const counts = countJobsByCategory(base);
+      const opts = [
+        { value: "", label: `全部类别（${base.length}）` },
+        ...CAT_PRODUCT.map((c) => ({
+          value: c,
+          label: `${c}（${counts[c] ?? 0}）`,
+        })),
+      ];
+      mountCusel(document.getElementById("cuselCategory"), opts, FILTER.category, (v) => {
+        FILTER.category = v;
+        refresh();
+      });
+    }
+
+    function getFiltered() {
+      return jobsEnriched.filter(passList);
+    }
+
+    function uniqueCities() {
+      const set = new Set();
+      for (const j of jobsEnriched) {
+        set.add(j.city && j.city !== OMIT ? j.city : OMIT);
+      }
+      return [...set].sort((a, b) => {
+        if (a === OMIT) return 1;
+        if (b === OMIT) return -1;
+        return a.localeCompare(b, "zh");
+      });
+    }
+
+    function mountCusel(root, options, currentValue, onPick) {
+      if (!root) return;
+      const cur = options.find((o) => o.value === currentValue) || options[0];
+      const curLabel = cur ? cur.label : "";
+      root.innerHTML = "";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cusel-btn";
+      btn.setAttribute("aria-haspopup", "listbox");
+      btn.setAttribute("aria-expanded", "false");
+      const span = document.createElement("span");
+      span.style.flex = "1";
+      span.style.minWidth = "0";
+      span.style.overflow = "hidden";
+      span.style.textOverflow = "ellipsis";
+      span.style.whiteSpace = "nowrap";
+      span.textContent = curLabel;
+      const caret = document.createElement("span");
+      caret.className = "cusel-caret";
+      caret.setAttribute("aria-hidden", "true");
+      btn.appendChild(span);
+      btn.appendChild(caret);
+      const panel = document.createElement("div");
+      panel.className = "cusel-panel";
+      panel.setAttribute("role", "listbox");
+      function renderOptions() {
+        panel.innerHTML = "";
+        for (const o of options) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "cusel-option";
+          b.setAttribute("role", "option");
+          b.setAttribute("aria-selected", o.value === currentValue ? "true" : "false");
+          b.textContent = o.label;
+          b.addEventListener("click", (e) => {
+            e.stopPropagation();
+            currentValue = o.value;
+            onPick(o.value);
+            closeAllCusel();
+          });
+          panel.appendChild(b);
+        }
+      }
+      renderOptions();
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const open = root.classList.toggle("open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) {
+          document.querySelectorAll(".cusel.open").forEach((el) => {
+            if (el !== root) {
+              el.classList.remove("open");
+              const ob = el.querySelector(".cusel-btn");
+              if (ob) ob.setAttribute("aria-expanded", "false");
+            }
+          });
+        }
+      });
+      root.addEventListener("click", (e) => e.stopPropagation());
+      root.appendChild(btn);
+      root.appendChild(panel);
+    }
+
+    function closeAllCusel() {
+      document.querySelectorAll(".cusel.open").forEach((el) => {
+        el.classList.remove("open");
+        const b = el.querySelector(".cusel-btn");
+        if (b) b.setAttribute("aria-expanded", "false");
+      });
+    }
+
+    document.addEventListener("click", () => closeAllCusel());
+
+    function syncKeywordFilter() {
+      const inp = document.getElementById("filterKeyword");
+      FILTER.keyword = inp ? inp.value : "";
+    }
+
+    function renderCards(filtered) {
+      const el = document.getElementById("cards");
+      el.innerHTML = "";
+      const list = [...filtered].sort((a, b) => a.company.localeCompare(b.company, "zh") || a.id - b.id);
+
+      for (const j of list) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const linkHtml = j.url
+          ? `<a class="job-link" href="${escapeAttr(j.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(j.url)}</a>`
+          : "";
+        const extraLinkHtml = j.extraApplyUrl
+          ? `<div class="meta" style="margin-top:0.2rem;font-size:0.78rem;color:var(--muted)">PDF 另有投递入口：<a class="job-link" href="${escapeAttr(j.extraApplyUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(j.extraApplyUrl)}</a></div>`
+          : "";
+        const metaLine = formatMeta(j);
+        const catSpans = j.cats.map((c) => `<span class="${catClass(c)}">${escapeHtml(c)}</span>`).join("");
+        const footCats = catSpans
+          ? `<span style="opacity:0.92">类别：</span>${catSpans}`
+          : "";
+        const st = getApplyStatus(j.id);
+        const segNone = st === "none" ? " on" : "";
+        const segAp = st === "applied" ? " on" : "";
+        const segInt = st === "interview" ? " on" : "";
+
+        card.innerHTML = `
+          <div class="title-row">
+            <h3>${escapeHtml(j.title)}</h3>
+          </div>
+          <div class="meta">
+            <span class="company-pill">${escapeHtml(companyKey(j))}</span>
+            ${metaLine ? "<span>" + escapeHtml(metaLine) + "</span>" : ""}
+          </div>
+          ${linkHtml ? `<div class="meta" style="margin-top:0.25rem">${linkHtml}${extraLinkHtml}</div>` : `${extraLinkHtml}`}
+          <div class="jd-wrap" data-id="${j.id}">
+            <div class="jd">${highlightJD(formatJdLogicalBreaks(normalizeJdReflow(j.jd)))}</div>
+            <button type="button" class="jd-toggle" aria-expanded="false">展示完整 JD</button>
+          </div>
+          <div class="card-foot">
+            ${footCats ? `<span style="display:inline-block;margin-top:0.25rem;max-width:100%">${footCats}</span>` : "<span></span>"}
+            <div class="apply-seg" data-job-id="${j.id}" role="group" aria-label="投递状态">
+              <button type="button" data-apply="none" class="${segNone}" title="未投">未投</button>
+              <button type="button" data-apply="applied" class="${segAp}">已投</button>
+              <button type="button" data-apply="interview" class="${segInt}">面试中</button>
+            </div>
+          </div>
+        `;
+        el.appendChild(card);
+      }
+    }
+
+    const jdDialog = document.getElementById("jdDialog");
+    const jdDialogBody = document.getElementById("jdDialogBody");
+    const jdDialogTitle = document.getElementById("jdDialogTitle");
+    const jdDialogClose = document.getElementById("jdDialogClose");
+
+    function openJdDialog(wrap) {
+      const card = wrap.closest(".card");
+      const jdEl = wrap.querySelector(".jd");
+      const h3 = card && card.querySelector("h3");
+      if (!jdEl) return;
+      jdDialogTitle.textContent = h3 ? h3.textContent.trim() : "岗位 JD";
+      jdDialogBody.innerHTML = jdEl.innerHTML;
+      if (typeof jdDialog.showModal === "function") {
+        jdDialog.showModal();
+      } else {
+        jdDialog.setAttribute("open", "");
+      }
+    }
+
+    function closeJdDialog() {
+      if (typeof jdDialog.close === "function") {
+        jdDialog.close();
+      } else {
+        jdDialog.removeAttribute("open");
+      }
+    }
+
+    document.getElementById("cards").addEventListener("click", (e) => {
+      const appBtn = e.target.closest(".apply-seg button");
+      if (appBtn && e.currentTarget.contains(appBtn)) {
+        e.preventDefault();
+        const seg = appBtn.closest(".apply-seg");
+        const id = seg && seg.getAttribute("data-job-id");
+        if (!id) return;
+        setApplyStatus(id, appBtn.getAttribute("data-apply") || "none");
+        refresh();
+        return;
+      }
+      const btn = e.target.closest(".jd-toggle");
+      if (!btn || !e.currentTarget.contains(btn)) return;
+      e.preventDefault();
+      const wrap = btn.closest(".jd-wrap");
+      if (!wrap) return;
+      openJdDialog(wrap);
+    });
+
+    jdDialogClose.addEventListener("click", () => closeJdDialog());
+
+    function mountCompanyHireCity() {
+      const companies = [...new Set(jobsEnriched.map(companyKey))].sort((a, b) => a.localeCompare(b, "zh"));
+      const coOpts = [{ value: "", label: "全部公司" }, ...companies.map((c) => ({ value: c, label: c }))];
+      mountCusel(document.getElementById("cuselCompany"), coOpts, FILTER.company, (v) => {
+        FILTER.company = v;
+        refresh();
+      });
+
+      const baseHire = jobsEnriched.filter(passForHireCounts);
+      const hireOpts = [
+        { value: "", label: `全部类型（${baseHire.length}）` },
+        { value: "社招", label: `社招（${baseHire.filter((j) => matchesHireType(j, "社招")).length}）` },
+        { value: "校招", label: `校招（${baseHire.filter((j) => matchesHireType(j, "校招")).length}）` },
+        { value: "实习", label: `实习（${baseHire.filter((j) => matchesHireType(j, "实习")).length}）` },
+      ];
+      mountCusel(document.getElementById("cuselHire"), hireOpts, FILTER.hire, (v) => {
+        FILTER.hire = v;
+        refresh();
+      });
+
+      const baseCity = jobsEnriched.filter(passForCityCounts);
+      const cities = uniqueCities();
+      const cityOpts = [
+        { value: "", label: `全部城市（${baseCity.length}）` },
+        ...cities.map((c) => {
+          const n = baseCity.filter((j) => jobCityNorm(j) === c).length;
+          return { value: c, label: (c === OMIT ? "城市未注明" : c) + `（${n}）` };
+        }),
+      ];
+      mountCusel(document.getElementById("cuselCity"), cityOpts, FILTER.city, (v) => {
+        FILTER.city = v;
+        refresh();
+      });
+    }
+
+    function syncFunnelBar() {
+      document.querySelectorAll("#funnelBar button").forEach((b) => {
+        b.classList.toggle("on", (b.getAttribute("data-status") || "") === FILTER.apply);
+      });
+    }
+
+    function updateFunnelCounts() {
+      const base = jobsEnriched.filter(passFunnelBase);
+      let nNone = 0;
+      let nAp = 0;
+      let nInt = 0;
+      for (const j of base) {
+        const s = getApplyStatus(j.id);
+        if (s === "applied") nAp++;
+        else if (s === "interview") nInt++;
+        else nNone++;
+      }
+      const elAll = document.getElementById("funnel-all");
+      const elN = document.getElementById("funnel-none");
+      const elA = document.getElementById("funnel-applied");
+      const elI = document.getElementById("funnel-interview");
+      if (elAll) elAll.textContent = String(base.length);
+      if (elN) elN.textContent = String(nNone);
+      if (elA) elA.textContent = String(nAp);
+      if (elI) elI.textContent = String(nInt);
+    }
+
+    function csvEscapeCell(s) {
+      const t = String(s ?? "");
+      if (/[",\n\r]/.test(t)) return '"' + t.replace(/"/g, '""') + '"';
+      return t;
+    }
+
+    function applyLabel(st) {
+      if (st === "applied") return "已投";
+      if (st === "interview") return "面试中";
+      return "未投";
+    }
+
+    function exportCsv(jobs) {
+      const headers = ["id", "company", "bu", "title", "city", "type", "apply", "categories", "url"];
+      const lines = [headers.join(",")];
+      for (const j of jobs) {
+        const row = [
+          j.id,
+          j.company,
+          j.bu,
+          j.title,
+          j.city,
+          j.type,
+          applyLabel(getApplyStatus(j.id)),
+          j.cats.join("；"),
+          j.url || "",
+        ].map(csvEscapeCell);
+        lines.push(row.join(","));
+      }
+      const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `offer-go-jobs-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function exportMd(jobs) {
+      const parts = [`# Offer Go 岗位导出`, ``, `生成时间：${new Date().toLocaleString("zh-CN")}`, `共 ${jobs.length} 条`, ``];
+      for (const j of jobs) {
+        parts.push(`## ${j.id}. ${j.title}`);
+        parts.push("");
+        parts.push(`- **公司**：${j.company}`);
+        parts.push(`- **BU**：${j.bu}`);
+        parts.push(`- **城市**：${j.city}`);
+        parts.push(`- **类型**：${j.type}`);
+        parts.push(`- **投递**：${applyLabel(getApplyStatus(j.id))}`);
+        parts.push(`- **类别**：${j.cats.join("；")}`);
+        if (j.url) parts.push(`- **链接**：${j.url}`);
+        parts.push("");
+        parts.push("### JD（节选）");
+        parts.push("");
+        const jd = formatJdLogicalBreaks(normalizeJdReflow(j.jd || ""));
+        const short = jd.length > 1200 ? jd.slice(0, 1200).trim() + "…" : jd;
+        parts.push(short);
+        parts.push("");
+        parts.push("---");
+        parts.push("");
+      }
+      const blob = new Blob([parts.join("\n")], { type: "text/markdown;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `offer-go-jobs-${new Date().toISOString().slice(0, 10)}.md`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function refresh() {
+      syncKeywordFilter();
+      mountCompanyHireCity();
+      rebuildCategoryOptions();
+      updateFunnelCounts();
+      syncFunnelBar();
+
+      const filtered = getFiltered();
+      document.getElementById("stat-jobs").textContent = filtered.length;
+      document.getElementById("stat-companies").textContent = new Set(filtered.map(companyKey)).size;
+      const nAp = filtered.filter((j) => getApplyStatus(j.id) === "applied").length;
+      const nInt = filtered.filter((j) => getApplyStatus(j.id) === "interview").length;
+      const denom = filtered.length;
+      const elPct = document.getElementById("stat-applied-pct");
+      if (elPct) {
+        if (!denom) elPct.textContent = "—";
+        else elPct.textContent = `${Math.round(((nAp + nInt) / denom) * 100)}%`;
+      }
+
+      renderCards(filtered);
+    }
+
+    function initFilters() {
+      const kw = document.getElementById("filterKeyword");
+      if (kw) {
+        kw.addEventListener("input", () => {
+          syncKeywordFilter();
+          refresh();
+        });
+      }
+      for (const id of ["kwAgent", "kwVoice", "kwPlatform"]) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", () => refresh());
+      }
+
+      const funnel = document.getElementById("funnelBar");
+      if (funnel) {
+        funnel.addEventListener("click", (e) => {
+          const b = e.target.closest("button[data-status]");
+          if (!b) return;
+          FILTER.apply = b.getAttribute("data-status") || "";
+          refresh();
+        });
+      }
+
+      const exCsv = document.getElementById("btnExportCsv");
+      const exMd = document.getElementById("btnExportMd");
+      if (exCsv) exCsv.addEventListener("click", () => exportCsv(getFiltered()));
+      if (exMd) exMd.addEventListener("click", () => exportMd(getFiltered()));
+    }
+
+    initFilters();
+    refresh();
+  </script>
+</body>
+</html>
