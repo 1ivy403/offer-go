@@ -977,6 +977,11 @@
       return passCompany(j) && passCategory(j) && passHire(j) && passKeyword(j) && passApplyFilter(j);
     }
 
+    /** 算公司个数：不含「公司」，含其它筛选与投递漏斗 */
+    function passForCompanyCounts(j) {
+      return passCategory(j) && passHire(j) && passCity(j) && passKeyword(j) && passApplyFilter(j);
+    }
+
     function matchesHireType(j, hireVal) {
       if (!hireVal) return true;
       const t = j.type || "";
@@ -1235,7 +1240,14 @@
 
     function mountCompanyHireCity() {
       const companies = [...new Set(jobsEnriched.map(companyKey))].sort((a, b) => a.localeCompare(b, "zh"));
-      const coOpts = [{ value: "", label: "全部公司" }, ...companies.map((c) => ({ value: c, label: c }))];
+      const baseCo = jobsEnriched.filter(passForCompanyCounts);
+      const coOpts = [
+        { value: "", label: `全部公司（${baseCo.length}）` },
+        ...companies.map((c) => ({
+          value: c,
+          label: `${c}（${baseCo.filter((j) => companyKey(j) === c).length}）`,
+        })),
+      ];
       mountCusel(document.getElementById("cuselCompany"), coOpts, FILTER.company, (v) => {
         FILTER.company = v;
         refresh();
